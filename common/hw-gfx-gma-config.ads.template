@@ -342,6 +342,7 @@ private package HW.GFX.GMA.Config is
    Use_KBL_DDI_Buf_Trans         : <sklbool> := CPU_Kabylake;
 
    Need_DP_Aux_Mutex             : <genbool> := False; -- Skylake & (PSR | GTC)
+   Has_Full_GMCH_Aux_Setup       : <genbool> := Gen_Valleyview;
 
    ----- DP: --------------------
    DP_Max_2_7_GHz                : <hswbool> :=

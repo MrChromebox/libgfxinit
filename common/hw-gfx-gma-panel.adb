@@ -417,15 +417,14 @@ is
          return;
       end if;
 
-      Registers.Wait_Unset_Mask
+      Registers.Wait
         (Register => PP (Panel).STATUS,
-         Mask     => PCH_PP_STATUS_PWR_SEQ_PROGRESS_MASK,
+         Mask     => PCH_PP_STATUS_ENABLED or
+                     PCH_PP_STATUS_PWR_SEQ_PROGRESS_MASK,
+         Value    => PCH_PP_STATUS_ENABLED or
+                     PCH_PP_STATUS_PWR_SEQ_PROGRESS_NONE,
          TOut_MS  => 1_000,
          Success  => Powered_On);
-      if Powered_On then
-         Registers.Is_Set_Mask
-           (PP (Panel).STATUS, PCH_PP_STATUS_ENABLED, Powered_On);
-      end if;
       pragma Debug (not Powered_On, Debug.Put_Line
         ("ERROR: Panel power sequencer didn't power the panel up!"));
 

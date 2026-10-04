@@ -12,12 +12,36 @@
 -- GNU General Public License for more details.
 --
 
+with HW.GFX.GMA.Registers;
+
 package body HW.GFX.GMA.PLLs
 with
    Refined_State => (State => null)
 is
 
+   DPLL_REF_CLK_ENABLE_VLV     : constant := 1 * 2 ** 29;
+   DPLL_VGA_MODE_DIS           : constant := 1 * 2 ** 28;
+   DPLL_INTEGRATED_CRI_CLK_VLV : constant := 1 * 2 ** 14;
+   DPLL_INTEGRATED_REF_CLK_VLV : constant := 1 * 2 ** 13;
+
    procedure Initialize is null;
+
+   procedure Enable_Refclk
+   is
+   begin
+      -- Enable Refclk, this needs to be done early
+      Registers.Set_Mask
+        (Register => Registers.GMCH_DPLL_A,
+         Mask     => DPLL_VGA_MODE_DIS or
+                     DPLL_REF_CLK_ENABLE_VLV or
+                     DPLL_INTEGRATED_REF_CLK_VLV);
+      Registers.Set_Mask
+        (Register => Registers.GMCH_DPLL_B,
+         Mask     => DPLL_VGA_MODE_DIS or
+                     DPLL_REF_CLK_ENABLE_VLV or
+                     DPLL_INTEGRATED_CRI_CLK_VLV or
+                     DPLL_INTEGRATED_REF_CLK_VLV);
+   end Enable_Refclk;
 
    pragma Warnings (GNATprove, Off, "unused variable ""Port_Cfg""",
                     Reason => "Needed for a common interface");

@@ -26,6 +26,8 @@ is
    with
       Global => (Output => State);
 
+   procedure Enable_Refclk;
+
    procedure Alloc
      (Port_Cfg : in     Port_Config;
       PLL      :    out T;

@@ -53,10 +53,16 @@ is
       GMCH_GMBUS5,
       GMCH_DPLL_A,
       GMCH_DPLL_B,
+      GMCH_DPLL_A_MD,
+      GMCH_DPLL_B_MD,
+      VLV_RAWCLK_FREQ,
       GMCH_FPA0,
       GMCH_FPA1,
       GMCH_FPB0,
       GMCH_FPB1,
+      VLV_DSPCLK_GATE_D,
+      VLV_MI_ARB,
+      VLV_GMBUSFREQ,
       MBCTL,
       UCGCTL1,
       UCGCTL2,
@@ -218,6 +224,15 @@ is
       GMCH_PP_OFF_DELAYS,
       GMCH_PP_DIVISOR,
       GMCH_PFIT_CONTROL,
+      VLV_BLC_PWM_CTL2_A,
+      VLV_BLC_PWM_CTL_A,
+      VLV_PIPE_B_PP_STATUS,
+      VLV_PIPE_B_PP_CONTROL,
+      VLV_PIPE_B_PP_ON_DELAYS,
+      VLV_PIPE_B_PP_OFF_DELAYS,
+      VLV_PIPE_B_PP_DIVISOR,
+      VLV_BLC_PWM_CTL2_B,
+      VLV_BLC_PWM_CTL_B,
       PIPEB_DDI_FUNC_CTL,
       PIPEB_MSA_MISC,
       TGL_DP_TP_CTL_B,
@@ -616,6 +631,7 @@ is
       PLANE_WM_2_A_6,
       PLANE_WM_2_A_7,
       PLANE_BUF_CFG_2_A,
+      VLV_CBR1,
       PIPE_SCANLINE_B,
       PIPEBCONF,
       PIPEB_ARB_CTL,
@@ -679,6 +695,7 @@ is
       PLANE_WM_2_B_7,
       PLANE_BUF_CFG_2_B,
       GMCH_VGACNTRL,
+      VLV_SWF_10,
       PIPE_SCANLINE_C,
       PIPECCONF,
       PIPEC_ARB_CTL,
@@ -1074,7 +1091,11 @@ is
       PORT_TX_DFLEXDPPMS_FIA3,
       PORT_TX_DFLEXDPCSSS_FIA3,
       PORT_TX_DFLEXDPSP_FIA3,
-      PORT_TX_DFLEXDPMLE1_FIA3);
+      PORT_TX_DFLEXDPMLE1_FIA3,
+      VLV_IOSF_DOORBELL_REQ,
+      VLV_IOSF_DATA,
+      VLV_IOSF_ADDR,
+      VLV_DPIO_CTL);
    pragma Warnings
      (GNATprove, Off, "pragma ""KEEP_NAMES"" ignored *(not yet supported)",
       Reason => "TODO: Should it matter?");
@@ -1896,6 +1917,7 @@ is
       DSSM                  => 16#05_1004# / Register_Width,
       CPU_VGACNTRL          => 16#04_1000# / Register_Width,
       GMCH_VGACNTRL         => 16#07_1400# / Register_Width,
+      VLV_SWF_10            => 16#07_1410# / Register_Width,
       FUSE_STATUS           => 16#04_2000# / Register_Width,
       FUSE_STRAP            => 16#04_2014# / Register_Width,
       FBA_CFB_BASE          => 16#04_3200# / Register_Width,
@@ -2336,7 +2358,33 @@ is
       TCSS_DDI_STATUS_4        => 16#16_150c# / Register_Width,
 
       DISPLAY_ERR_FATAL_MASK   => 16#04_421c# / Register_Width,
-      MBUS_CTL                 => 16#04_438c# / Register_Width);
+      MBUS_CTL                 => 16#04_438c# / Register_Width,
+
+      -- Valleyview display registers, subject to Display_Base_Offset
+      GMCH_DPLL_A_MD           => 16#00_601c# / Register_Width,
+      GMCH_DPLL_B_MD           => 16#00_6020# / Register_Width,
+      VLV_RAWCLK_FREQ          => 16#00_6024# / Register_Width,
+      VLV_DSPCLK_GATE_D        => 16#00_6200# / Register_Width,
+      VLV_MI_ARB               => 16#00_6504# / Register_Width,
+      VLV_GMBUSFREQ            => 16#00_6510# / Register_Width,
+      VLV_BLC_PWM_CTL2_A       => 16#06_1250# / Register_Width,
+      VLV_BLC_PWM_CTL_A        => 16#06_1254# / Register_Width,
+      VLV_PIPE_B_PP_STATUS     => 16#06_1300# / Register_Width,
+      VLV_PIPE_B_PP_CONTROL    => 16#06_1304# / Register_Width,
+      VLV_PIPE_B_PP_ON_DELAYS  => 16#06_1308# / Register_Width,
+      VLV_PIPE_B_PP_OFF_DELAYS => 16#06_130c# / Register_Width,
+      VLV_PIPE_B_PP_DIVISOR    => 16#06_1310# / Register_Width,
+      VLV_BLC_PWM_CTL2_B       => 16#06_1350# / Register_Width,
+      VLV_BLC_PWM_CTL_B        => 16#06_1354# / Register_Width,
+      VLV_CBR1                 => 16#07_0400# / Register_Width,
+
+      -- Valleyview IOSF at absolute 0x1821xx: relative 0x21xx is
+      -- outside the display offset ranges, and widening them would
+      -- also lift GT regs that stay at 0x2xxx.
+      VLV_IOSF_DOORBELL_REQ    => 16#18_2100# / Register_Width,
+      VLV_IOSF_DATA            => 16#18_2104# / Register_Width,
+      VLV_IOSF_ADDR            => 16#18_2108# / Register_Width,
+      VLV_DPIO_CTL             => 16#18_2110# / Register_Width);
 
    subtype Registers_Index is Registers_Invalid_Index range
       Registers_Invalid_Index'Succ (Invalid_Register) ..

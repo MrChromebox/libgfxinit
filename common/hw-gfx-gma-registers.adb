@@ -327,14 +327,30 @@ is
    end Rep;
 
    package body Rep is
+      -- Valleyview moved the display registers that G45 had in these
+      -- ranges up by Config.Display_Base_Offset.
+      subtype Display_Range_1 is Natural
+         range 16#0_5000# / Register_Width .. 16#0_7fff# / Register_Width;
+      subtype Display_Range_2 is Natural
+         range 16#6_0000# / Register_Width .. 16#7_ffff# / Register_Width;
+
+      Display_Offset : constant := Config.Display_Base_Offset / Register_Width;
+
       function Index (Reg : Registers_Index) return Registers_Range
       with
          SPARK_Mode => Off
       is
+         Idx : constant Natural := Reg'Enum_Rep;
       begin
-         return Reg'Enum_Rep;
+         return Registers_Range
+           (Idx +
+            (if Idx in Display_Range_1 or Idx in Display_Range_2
+             then Display_Offset else 0));
       end Index;
    end Rep;
+
+   function Address (Reg : Registers_Index) return Word32 is
+     (Word32 (Rep.Index (Reg)) * Register_Width);
 
    -- Read a specific register
    procedure Read
@@ -348,7 +364,7 @@ is
       pragma Debug (Verbose, Debug.Put (GNAT.Source_Info.Enclosing_Entity & ":  "));
       pragma Debug (Verbose, Debug.Put_Word32 (Value));
       pragma Debug (Verbose, Debug.Put (" <- "));
-      pragma Debug (Verbose, Debug.Put_Word32 (Register'Enum_Rep * Register_Width));
+      pragma Debug (Verbose, Debug.Put_Word32 (Address (Register)));
       pragma Debug (Verbose, Debug.Put (":"));
       pragma Debug (Verbose, Debug.Put_Line (Registers_Index'Image (Register)));
    end Read;
@@ -382,7 +398,7 @@ is
       pragma Debug (Verbose, Debug.Put (GNAT.Source_Info.Enclosing_Entity & ": "));
       pragma Debug (Verbose, Debug.Put_Word32 (Value));
       pragma Debug (Verbose, Debug.Put (" -> "));
-      pragma Debug (Verbose, Debug.Put_Word32 (Register'Enum_Rep * Register_Width));
+      pragma Debug (Verbose, Debug.Put_Word32 (Address (Register)));
       pragma Debug (Verbose, Debug.Put (":"));
       pragma Debug (Verbose, Debug.Put_Line (Registers_Index'Image (Register)));
 
@@ -430,7 +446,7 @@ is
       pragma Debug (Debug.Put (" <- "));
       pragma Debug (Debug.Put_Word32 (Mask));
       pragma Debug (Debug.Put (" & "));
-      pragma Debug (Debug.Put_Word32 (Register'Enum_Rep * Register_Width));
+      pragma Debug (Debug.Put_Word32 (Address (Register)));
       pragma Debug (Debug.Put (":"));
       pragma Debug (Debug.Put_Line (Registers_Index'Image (Register)));
 

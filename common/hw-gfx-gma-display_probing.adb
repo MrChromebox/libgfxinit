@@ -275,6 +275,22 @@ is
          end;
       end if;
 
+      -- With per-pipe panel power sequencers, panel 1 has to be driven
+      -- by the primary and panel 2 by the secondary pipe.
+      if Config.Has_Per_Pipe_Panel_Power and then
+        ((Configs (Secondary).Port /= Disabled and then
+          Config_Helpers.To_Panel (Configs (Secondary).Port) = Panel_1) or
+         (Configs (Primary).Port /= Disabled and then
+          Config_Helpers.To_Panel (Configs (Primary).Port) = Panel_2))
+      then
+         declare
+            Tmp : constant Pipe_Config := Configs (Secondary);
+         begin
+            Configs (Secondary) := Configs (Primary);
+            Configs (Primary) := Tmp;
+         end;
+      end if;
+
       -- Restore power settings
       if not Keep_Power then
          Power_And_Clocks.Power_Set_To (Cur_Configs);

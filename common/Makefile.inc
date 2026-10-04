@@ -138,6 +138,8 @@ ifneq ($(filter I945,$(CONFIG_GFX_GMA_GENERATION)),)
 subdirs-y += i945
 else ifneq ($(filter G45,$(CONFIG_GFX_GMA_GENERATION)),)
 subdirs-y += g45
+else ifneq ($(filter Valleyview,$(CONFIG_GFX_GMA_GENERATION)),)
+subdirs-y += valleyview
 else ifneq ($(filter Ironlake,$(CONFIG_GFX_GMA_GENERATION)),)
 subdirs-y += ironlake
 else ifneq ($(filter Haswell,$(CONFIG_GFX_GMA_GENERATION)),)

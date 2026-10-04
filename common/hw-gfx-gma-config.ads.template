@@ -22,6 +22,7 @@ private package HW.GFX.GMA.Config is
      (case Gen is
          when I945         => I945G,
          when G45          => GM965,
+         when Valleyview   => Baytrail,
          when Ironlake     => Ironlake,
          when Haswell      => Haswell,
          when Broxton      => Broxton,
@@ -32,6 +33,7 @@ private package HW.GFX.GMA.Config is
      (case Gen is
          when I945         => Pineview_M,
          when G45          => GM45,
+         when Valleyview   => Baytrail,
          when Ironlake     => Ivybridge,
          when Haswell      => Broadwell,
          when Broxton      => Broxton,
@@ -58,6 +60,7 @@ private package HW.GFX.GMA.Config is
      (case Gen is
          when I945         => No_PCH,
          when G45          => No_PCH,
+         when Valleyview   => No_PCH,
          when Ironlake     => Ibex_Peak,
          when Haswell      => Lynx_Point,
          when Broxton      => No_PCH,
@@ -68,6 +71,7 @@ private package HW.GFX.GMA.Config is
      (case Gen is
          when I945         => No_PCH,
          when G45          => No_PCH,
+         when Valleyview   => No_PCH,
          when Ironlake     => Cougar_Point,
          when Haswell      => Lynx_Point,
          when Broxton      => No_PCH,
@@ -159,6 +163,7 @@ private package HW.GFX.GMA.Config is
 
    Gen_I945          : <genbool> := Gen = I945;
    Gen_G45           : <genbool> := Gen = G45;
+   Gen_Valleyview    : <genbool> := Gen = Valleyview;
    Gen_Ironlake      : <genbool> := Gen = Ironlake;
    Gen_Haswell       : <genbool> := Gen = Haswell;
    Gen_Broxton       : <genbool> := Gen = Broxton;
@@ -167,6 +172,7 @@ private package HW.GFX.GMA.Config is
    Gen_AlderlakeP    : <genbool> := Gen = AlderlakeP;
 
    Up_To_G45         : <genbool> := Gen <= G45;
+   Up_To_Valleyview  : <genbool> := Gen <= Valleyview;
    Up_To_Ironlake    : <genbool> := Gen <= Ironlake;
    G45_On            : <genbool> := Gen >= G45;
    Ironlake_On       : <genbool> := Gen >= Ironlake;
@@ -224,7 +230,8 @@ private package HW.GFX.GMA.Config is
 
    ---------- CPU pipe: ---------
    Has_Tertiary_Pipe             : <ilkbool> := Ivybridge_On;
-   Disable_Trickle_Feed          : <genbool> := not Gen_Haswell and not Gen_I945;
+   Disable_Trickle_Feed          : <genbool> :=
+     (not Gen_Haswell and not Gen_I945 and not Gen_Valleyview);
    Pipe_Enabled_Workaround       : <hswbool> := CPU_Broadwell;
    Has_EDP_Transcoder            : <genbool> := Haswell_On and not Tigerlake_On;
    Use_PDW_For_EDP_Scaling       : <hswbool> := CPU_Haswell;
@@ -242,8 +249,8 @@ private package HW.GFX.GMA.Config is
    Has_Ivybridge_Cursors         : <ilkbool> := Ivybridge_On;
    VGA_Plane_Workaround          : <ilkbool> := CPU_Ivybridge;
    Has_GMCH_DP_Transcoder        : <genbool> := Gen_G45;
-   Has_GMCH_VGACNTRL             : <genbool> := Up_To_G45;
-   Has_GMCH_PFIT_CONTROL         : <genbool> := Up_To_G45;
+   Has_GMCH_VGACNTRL             : <genbool> := Up_To_Valleyview;
+   Has_GMCH_PFIT_CONTROL         : <genbool> := Up_To_Valleyview;
 
    ----------- Transcoder -------
    Need_Early_Transcoder_Setup   : <genbool> := Tigerlake_On;
@@ -342,7 +349,7 @@ private package HW.GFX.GMA.Config is
    Ungate_GMBUS_Unit_Level       : <genbool> := Skylake_On and not Tigerlake_On;
    GMBUS_Alternative_Pins        : <genbool> := Gen_Broxton or Cannon_Point_On;
    Has_PCH_GMBUS                 : <genbool> := Ironlake_On;
-   Has_GMCH_GMBUS                : <genbool> := Up_To_G45;
+   Has_GMCH_GMBUS                : <genbool> := Up_To_Valleyview;
 
    ----------- Power: -----------
    Has_IPS                       : <hswbool> :=
@@ -419,6 +426,7 @@ private package HW.GFX.GMA.Config is
    Default_CDClk_Freq : <i945ilkhswvar> CDClk_Range :=
      (if    Gen_I945                         then 200_000_000  -- unused, depends on GCFGC
       elsif Gen_G45                          then 320_000_000  -- unused
+      elsif Gen_Valleyview                   then 320_000_000  -- read from CCK
       elsif CPU_Ironlake                     then 450_000_000
       elsif CPU_Sandybridge or CPU_Ivybridge then 400_000_000
       elsif Gen_Haswell and then Is_ULX      then 337_500_000
@@ -431,6 +439,7 @@ private package HW.GFX.GMA.Config is
    Default_RawClk_Freq : <hswvar> Frequency_Type :=
      (if    Gen_I945       then 100_000_000  -- unused, depends on FSB
       elsif Gen_G45        then 100_000_000  -- unused, depends on FSB
+      elsif Gen_Valleyview then 200_000_000  -- read from CCK
       elsif Gen_Ironlake   then 125_000_000
       elsif Gen_Haswell    then (if Is_LP then 24_000_000 else 125_000_000)
       elsif Gen_Broxton    then Frequency_Type'First  -- none needed
@@ -446,7 +455,7 @@ private package HW.GFX.GMA.Config is
    type Width_Per_Pipe is array (Pipe_Index) of Width_Type;
 
    Maximum_Scalable_Width : <hswvar> Width_Per_Pipe :=
-     (if Gen_I945 or Gen_G45 then
+     (if Gen_I945 or Gen_G45 or Gen_Valleyview then
         (Primary     => 4096,
          Secondary   => 2048,
          Tertiary    => Pos32'First)
@@ -473,7 +482,7 @@ private package HW.GFX.GMA.Config is
    HDMI_Max_Clock_24bpp : constant Frequency_Type :=
      (case Gen is
          when Generation'First .. G45  => 165_000_000, -- i945: no HDMI, moot
-         when Ironlake                 => 225_000_000,
+         when Valleyview .. Ironlake   => 225_000_000,
          when Haswell .. Skylake       => 300_000_000,
          when Tigerlake .. AlderlakeP  => 600_000_000);
 
@@ -486,6 +495,7 @@ private package HW.GFX.GMA.Config is
 
    AUD_VID_DID_Offset : <ilkhswvar> Natural :=
      (if    Gen_G45       then 16#06_2020#
+      elsif Gen_Valleyview then 16#1e_2020#
       elsif Gen_Ironlake  then 16#0e_5020#
       else                     16#06_5020#);
 
@@ -500,9 +510,9 @@ private package HW.GFX.GMA.Config is
    GTT_PTE_Size : <hswvar> Natural := (if Has_64bit_GTT then 8 else 4);
 
    Fence_Base : <i945ilkvar> Natural :=
-     (if    Gen_I945         then 16#0000_2000#
-      elsif not Sandybridge_On then 16#0000_3000#
-      else                          16#0010_0000#);
+     (if    Gen_I945                  then 16#0000_2000#
+      elsif Gen_G45 or CPU_Ironlake   then 16#0000_3000#
+      else                                 16#0010_0000#);
 
    Fence_Count : <ilkvar> Natural :=
      (if not Ivybridge_On then 16 else 32);
@@ -656,6 +666,7 @@ private package HW.GFX.GMA.Config is
          when Pineview_M   => Device_Id = 16#a011#,
          when G45          => (Device_Id and 16#ff02#) = 16#2e02#,
          when GM45         => (Device_Id and 16#fffe#) = 16#2a42#,
+         when Baytrail     => (Device_Id and 16#fffc#) = 16#0f30#,
          when Ironlake     => (Device_Id and 16#fff3#) = 16#0042#,
          when Sandybridge  => (Device_Id and 16#ffc2#) = 16#0102#,
          when Ivybridge    => (Device_Id and 16#ffc3#) = 16#0142#,

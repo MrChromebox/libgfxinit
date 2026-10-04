@@ -38,6 +38,7 @@ is
    type Generation is
      (I945,
       G45,
+      Valleyview,
       Ironlake,
       Haswell,
       Broxton,
@@ -53,6 +54,7 @@ is
       Pineview_M,
       G45,
       GM45,
+      Baytrail,
       Ironlake,
       Sandybridge,
       Ivybridge,

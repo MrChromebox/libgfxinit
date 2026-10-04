@@ -848,7 +848,8 @@ is
       elsif Config.Gen_G45 or Config.CPU_Ironlake then
          GTT_Size    := GTT_Size_Gen4 (GGC);
          Stolen_Size := Stolen_Size_Gen4 (GGC);
-      elsif Config.CPU_Sandybridge or Config.CPU_Ivybridge or Config.CPU_Haswell
+      elsif Config.Gen_Valleyview or Config.CPU_Sandybridge or
+            Config.CPU_Ivybridge or Config.CPU_Haswell
       then
          GTT_Size    := GTT_Size_Gen6 (GGC);
          Stolen_Size := Stolen_Size_Gen6 (GGC);
@@ -891,7 +892,8 @@ is
             Dev.Read16 (GGC, GGC_Reg);
             if Config.Gen_G45 or Config.CPU_Ironlake then
                GTT_Size := GTT_Size_Gen4 (GGC);
-            elsif Config.CPU_Sandybridge or
+            elsif Config.Gen_Valleyview or
+                  Config.CPU_Sandybridge or
                   Config.CPU_Ivybridge or
                   Config.CPU_Haswell
             then

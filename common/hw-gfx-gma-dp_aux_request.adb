@@ -40,6 +40,7 @@ package body HW.GFX.GMA.DP_Aux_Request is
    DP_AUX_CTL_MESSAGE_SIZE_SHIFT    : constant :=        2 ** 20;
    DP_AUX_CTL_PRECHARGE_TIME_MASK   : constant :=   15 * 2 ** 16;
    DP_AUX_CTL_PRECHARGE_TIME_SHIFT  : constant :=        2 ** 16;
+   DP_AUX_CTL_PRECHARGE_TIME_10US   : constant :=    5 * 2 ** 16;
    DP_AUX_CTL_2X_BIT_CLOCK_DIV_MASK : constant := 2047 * 2 **  0;
    -- TODO: HSW/BDW with LPT-H might need a workaround for the 2x bit clock.
 
@@ -318,7 +319,7 @@ package body HW.GFX.GMA.DP_Aux_Request is
       end Read_Data_Reg;
 
       DP_AUX_CTL_2x_Clock_Mask : constant :=
-        (if Config.Has_PCH_Aux_Channels then
+        (if Config.Has_PCH_Aux_Channels or Config.Has_Full_GMCH_Aux_Setup then
             DP_AUX_CTL_2X_BIT_CLOCK_DIV_MASK else 0);
       DP_AUX_CTL_2x_Clock : constant Word32 :=
         (if Config.Has_PCH_Aux_Channels then
@@ -326,9 +327,15 @@ package body HW.GFX.GMA.DP_Aux_Request is
                Word32 ((Config.CDClk + 1_000_000) / 2_000_000)
             else
                Word32 ((Config.Raw_Clock + 1_000_000) / 2_000_000))
-         elsif Config.Has_GMCH_RawClk then
+         elsif Config.Has_GMCH_RawClk or Config.Has_Full_GMCH_Aux_Setup then
             Word32 (Div_Round_Closest (Config.Raw_Clock, 2_000_000))
          else 0);
+      DP_AUX_CTL_Precharge_Mask : constant :=
+        (if Config.Has_Full_GMCH_Aux_Setup then
+            DP_AUX_CTL_PRECHARGE_TIME_MASK else 0);
+      DP_AUX_CTL_Precharge : constant :=
+        (if Config.Has_Full_GMCH_Aux_Setup then
+            DP_AUX_CTL_PRECHARGE_TIME_10US else 0);
 
       Busy : Boolean;
       Status : Word32;
@@ -370,6 +377,7 @@ package body HW.GFX.GMA.DP_Aux_Request is
             Mask_Unset  => DP_AUX_CTL_INTERRUPT_ON_DONE or
                            DP_AUX_CTL_TIME_OUT_TIMER_MASK or
                            DP_AUX_CTL_MESSAGE_SIZE_MASK or
+                           DP_AUX_CTL_Precharge_Mask or
                            DP_AUX_CTL_2x_Clock_Mask,
             Mask_Set    => DP_AUX_CTL_SEND_BUSY or          -- starts transfer
                            DP_AUX_CTL_DONE or               -- clears the status
@@ -377,6 +385,7 @@ package body HW.GFX.GMA.DP_Aux_Request is
                            DP_AUX_CTL_RECEIVE_ERROR or      -- clears the status
                            DP_AUX_CTL_TIME_OUT_TIMER_600US or
                            DP_AUX_CTL_MESSAGE_SIZE (Request_Length) or
+                           DP_AUX_CTL_Precharge or
                            DP_AUX_CTL_2x_Clock);
 
          Registers.Wait_Unset_Mask

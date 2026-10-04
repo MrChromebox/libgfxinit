@@ -73,7 +73,8 @@ is
       Index_T     => GTT_Range,
       Array_T     => GTT_Registers_64);
 
-   GTT_PTE_Valid : constant := 1;
+   GTT_PTE_Valid     : constant := 1 * 2 ** 0;
+   GTT_PTE_Writeable : constant := 1 * 2 ** 1;
 
    ----------------------------------------------------------------------------
 
@@ -276,6 +277,9 @@ is
             Value => GTT_PTE_32 (Device_Address and 16#ffff_f000#) or
                      GTT_PTE_32 (Shift_Right (Word64 (Device_Address), 32 - 4)
                                    and 16#0000_07f0#) or
+                     (if Config.Has_Writeable_GTT_PTE and Valid
+                      then GTT_PTE_Writeable
+                      else 0) or
                      Boolean'Pos (Valid));
       else
          GTT_64.Write

@@ -41,7 +41,7 @@ is
                   when HDMI2 | DP2  => DIGI_C, -- SDVO C
                   when Analog       => VGA,
                   when others       => DIGI_A), -- n/a, actually
-            when G45 =>                -- everything on GMCH
+            when G45 | Valleyview =>   -- everything on GMCH
               (case Port is
                   when LVDS         => LVDS,
                   when eDP          => DIGI_A, -- n/a, actually

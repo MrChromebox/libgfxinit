@@ -30,7 +30,7 @@ private package HW.GFX.GMA.Power_And_Clocks is
 
    procedure Pre_All_Off is null;
 
-   procedure Post_All_Off is null;
+   procedure Post_All_Off;
 
    procedure Power_Set_To (Configs : Pipe_Configs) is null;
 

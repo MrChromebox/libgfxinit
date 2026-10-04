@@ -8,3 +8,6 @@ gfxinit-y += hw-gfx-gma-plls.ads
 gfxinit-y += hw-gfx-gma-port_detect.adb
 gfxinit-y += hw-gfx-gma-power_and_clocks.adb
 gfxinit-y += hw-gfx-gma-power_and_clocks.ads
+gfxinit-y += hw-gfx-gma-soc-hdmi.adb
+gfxinit-y += hw-gfx-gma-soc-hdmi.ads
+gfxinit-y += hw-gfx-gma-soc.ads

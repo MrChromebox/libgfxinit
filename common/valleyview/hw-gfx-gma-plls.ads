@@ -17,10 +17,16 @@ with
    Abstract_State => (State with Part_Of => GMA.State)
 is
 
+   -- The DPLLs of Valleyview are bound to the pipes and have to be
+   -- enabled in between the DPIO PHY setup steps. Hence, Alloc only
+   -- checks that a configuration is feasible and the connectors enable
+   -- the DPLL of their pipe with On() and Off().
+
    -- XXX: Types should be private (but that triggers a bug in SPARK GPL 2016)
-   type T is (Invalid_PLL, DPLL_A, DPLL_B);
-   subtype DPLLs is T range DPLL_A .. DPLL_B;
+   type T is (Invalid_PLL, Pipe_DPLL);
    Invalid : constant T := Invalid_PLL;
+
+   subtype DPLL_Pipe is Pipe_Index range Primary .. Secondary;
 
    procedure Initialize
    with
@@ -36,5 +42,19 @@ is
    procedure All_Off;
 
    function Register_Value (PLL : T) return Word32;
+
+   procedure On
+     (Pipe     : in     DPLL_Pipe;
+      Port_Cfg : in     Port_Config;
+      Success  :    out Boolean);
+
+   -- Run the DPLL at the DP RBR rate, without any port, unless it's
+   -- already running. Needed to kick the panel power sequencer of a pipe.
+   procedure On_RBR
+     (Pipe     : in     DPLL_Pipe;
+      Was_On   :    out Boolean;
+      Success  :    out Boolean);
+
+   procedure Off (Pipe : DPLL_Pipe);
 
 end HW.GFX.GMA.PLLs;

@@ -1,4 +1,8 @@
 gfxinit-y += hw-gfx-gma-connectors.adb
+gfxinit-y += hw-gfx-gma-dpio.adb
+gfxinit-y += hw-gfx-gma-dpio.ads
+gfxinit-y += hw-gfx-gma-iosf.adb
+gfxinit-y += hw-gfx-gma-iosf.ads
 gfxinit-y += hw-gfx-gma-plls.adb
 gfxinit-y += hw-gfx-gma-plls.ads
 gfxinit-y += hw-gfx-gma-port_detect.adb

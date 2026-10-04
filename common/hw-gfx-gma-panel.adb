@@ -78,6 +78,9 @@ is
    PCH_PP_CONTROL_POWER_DOWN_ON_RESET  : constant := 16#00_0001# * 2 **  1;
    PCH_PP_CONTROL_TARGET_ON            : constant := 16#00_0001# * 2 **  0;
 
+   VLV_SWF10_PIPEA_LFP                 : constant := 16#00_0008#;
+   VLV_SWF10_PIPEB_LFP                 : constant := 16#00_0800#;
+
    BXT_PP_CONTROL_PWR_CYC_DELAY_SHIFT  : constant :=                     4;
    BXT_PP_CONTROL_PWR_CYC_DELAY_MASK   : constant := 16#00_001f# * 2 **  4;
    function BXT_PP_CONTROL_PWR_CYC_DELAY (US : Natural) return Word32 is
@@ -88,6 +91,8 @@ is
    PCH_PP_ON_DELAYS_PORT_SELECT_DP_A   : constant := 16#00_0001# * 2 ** 30;
    PCH_PP_ON_DELAYS_PORT_SELECT_DP_C   : constant := 16#00_0002# * 2 ** 30;
    PCH_PP_ON_DELAYS_PORT_SELECT_DP_D   : constant := 16#00_0003# * 2 ** 30;
+   VLV_PP_ON_DELAYS_PORT_SELECT_DP_B   : constant := 16#00_0001# * 2 ** 30;
+   VLV_PP_ON_DELAYS_PORT_SELECT_DP_C   : constant := 16#00_0002# * 2 ** 30;
    PCH_PP_ON_DELAYS_PWR_UP_MASK        : constant := 16#00_1fff# * 2 ** 16;
    PCH_PP_ON_DELAYS_PWR_UP_BL_ON_MASK  : constant := 16#00_1fff# * 2 **  0;
 
@@ -113,6 +118,20 @@ is
             ON_DELAYS  => Registers.BXT_PP_ON_DELAYS_2,
             OFF_DELAYS => Registers.BXT_PP_OFF_DELAYS_2,
             DIVISOR    => Registers.PCH_PP_DIVISOR))  -- won't be used
+
+      elsif Config.Has_Per_Pipe_Panel_Power then
+        (Panel_1 =>
+           (STATUS     => Registers.GMCH_PP_STATUS,
+            CONTROL    => Registers.GMCH_PP_CONTROL,
+            ON_DELAYS  => Registers.GMCH_PP_ON_DELAYS,
+            OFF_DELAYS => Registers.GMCH_PP_OFF_DELAYS,
+            DIVISOR    => Registers.GMCH_PP_DIVISOR),
+         Panel_2 =>
+           (STATUS     => Registers.VLV_PIPE_B_PP_STATUS,
+            CONTROL    => Registers.VLV_PIPE_B_PP_CONTROL,
+            ON_DELAYS  => Registers.VLV_PIPE_B_PP_ON_DELAYS,
+            OFF_DELAYS => Registers.VLV_PIPE_B_PP_OFF_DELAYS,
+            DIVISOR    => Registers.VLV_PIPE_B_PP_DIVISOR))
 
       else
         (Panel_1 .. Panel_2 =>
@@ -188,6 +207,29 @@ is
          FREQ  => Registers.BXT_BLC_PWM_FREQ_2,
          DUTY  => Registers.BXT_BLC_PWM_DUTY_2));
 
+   VLV_BLC_PWM_CTL2_ENABLE             : constant := 16#00_0001# * 2 ** 31;
+
+   VLV_BLC_PWM_CTL_FREQ_SHIFT          : constant :=                    16;
+   VLV_BLC_PWM_CTL_DUTY_CYC_MASK       : constant := 16#00_ffff# * 2 **  0;
+
+   -- 200Hz, assuming the 25MHz PWM clock (CBR1) and its fixed divider of 16
+   VLV_BLC_PWM_DEFAULT_FREQ            : constant := 25_000_000 / 16 / 200;
+
+   type VLV_BLC_Regs is record
+      CTL2  : Registers.Registers_Index;
+      CTL   : Registers.Registers_Index;
+   end record;
+
+   -- Valleyview has a backlight PWM per pipe. Panel 1 has to be
+   -- driven by the primary pipe, panel 2 by the secondary.
+   VLV_BLC : constant array (Valid_Panels) of VLV_BLC_Regs :=
+     (Panel_1 =>
+        (CTL2  => Registers.VLV_BLC_PWM_CTL2_A,
+         CTL   => Registers.VLV_BLC_PWM_CTL_A),
+      Panel_2 =>
+        (CTL2  => Registers.VLV_BLC_PWM_CTL2_B,
+         CTL   => Registers.VLV_BLC_PWM_CTL_B));
+
    ----------------------------------------------------------------------------
 
    procedure Static_Init
@@ -256,7 +298,13 @@ is
          Check_PP_Delays (Delays_US (Panel), Override_Delays);
       end if;
 
-      if Config.Has_PP_Port_Select then
+      if Config.Has_PP_Port_Select and Config.Has_Per_Pipe_Panel_Power then
+         Port_Select :=
+           (case Config.Panel_Ports (Panel) is
+               when DP1 | HDMI1  => VLV_PP_ON_DELAYS_PORT_SELECT_DP_B,
+               when DP2 | HDMI2  => VLV_PP_ON_DELAYS_PORT_SELECT_DP_C,
+               when others       => 0);
+      elsif Config.Has_PP_Port_Select then
          Port_Select :=
            (case Config.Panel_Ports (Panel_1) is
                when LVDS         => PCH_PP_ON_DELAYS_PORT_SELECT_LVDS,
@@ -478,11 +526,38 @@ is
          Registers.Set_Mask
            (Register => BLC (Panel).CTL,
             Mask     => BXT_BLC_PWM_CTL_ENABLE);
+      elsif Config.Has_VLV_Backlight_Control then
+         declare
+            BLC_Ctl, Freq : Word32;
+         begin
+            -- i915: vlv_enable_backlight(). Firmware may only have set
+            -- the frequency. Full brightness is a duty equal to that.
+            Registers.Read (VLV_BLC (Panel).CTL, BLC_Ctl);
+            Freq := Shift_Right (BLC_Ctl, VLV_BLC_PWM_CTL_FREQ_SHIFT);
+            if Freq = 0 then
+               Freq := VLV_BLC_PWM_DEFAULT_FREQ;
+            end if;
+            Registers.Write (VLV_BLC (Panel).CTL2, 0);
+            Registers.Write
+              (Register => VLV_BLC (Panel).CTL,
+               Value    => Shift_Left (Freq, VLV_BLC_PWM_CTL_FREQ_SHIFT) or
+                           (Freq and 16#ffff#));
+            Registers.Posting_Read (VLV_BLC (Panel).CTL2);
+            Registers.Write
+              (VLV_BLC (Panel).CTL2, VLV_BLC_PWM_CTL2_ENABLE);
+         end;
       end if;
 
       Registers.Set_Mask
         (Register => PP (Panel).CONTROL,
          Mask     => PCH_PP_CONTROL_BACKLIGHT_ENABLE);
+
+      if Config.CPU_Baytrail then
+         Registers.Set_Mask
+           (Register => Registers.VLV_SWF_10,
+            Mask     => (if Panel = Panel_1 then VLV_SWF10_PIPEA_LFP
+                         else VLV_SWF10_PIPEB_LFP));
+      end if;
    end Backlight_On;
 
    procedure Backlight_Off (Panel : Panel_Control) is
@@ -497,10 +572,21 @@ is
         (Register => PP (Panel).CONTROL,
          Mask     => PCH_PP_CONTROL_BACKLIGHT_ENABLE);
 
+      if Config.CPU_Baytrail then
+         Registers.Unset_Mask
+           (Register => Registers.VLV_SWF_10,
+            Mask     => (if Panel = Panel_1 then VLV_SWF10_PIPEA_LFP
+                         else VLV_SWF10_PIPEB_LFP));
+      end if;
+
       if Config.Has_New_Backlight_Control then
          Registers.Unset_Mask
            (Register => BLC (Panel).CTL,
             Mask     => BXT_BLC_PWM_CTL_ENABLE);
+      elsif Config.Has_VLV_Backlight_Control then
+         Registers.Unset_Mask
+           (Register => VLV_BLC (Panel).CTL2,
+            Mask     => VLV_BLC_PWM_CTL2_ENABLE);
       end if;
    end Backlight_Off;
 
@@ -514,6 +600,11 @@ is
 
       if Config.Has_New_Backlight_Control then
          Registers.Write (BLC (Panel).DUTY, Level);
+      elsif Config.Has_VLV_Backlight_Control then
+         Registers.Unset_And_Set_Mask
+           (Register    => VLV_BLC (Panel).CTL,
+            Mask_Unset  => VLV_BLC_PWM_CTL_DUTY_CYC_MASK,
+            Mask_Set    => Level and VLV_BLC_PWM_CTL_DUTY_CYC_MASK);
       else
          Registers.Unset_And_Set_Mask
            (Register    => Registers.BLC_PWM_CPU_CTL,
@@ -533,6 +624,9 @@ is
 
       if Config.Has_New_Backlight_Control then
          Registers.Read (BLC (Panel).FREQ, Level);
+      elsif Config.Has_VLV_Backlight_Control then
+         Registers.Read (VLV_BLC (Panel).CTL, Level);
+         Level := Shift_Right (Level, VLV_BLC_PWM_CTL_FREQ_SHIFT);
       else
          Registers.Read (Registers.BLC_PWM_PCH_CTL2, Level);
          Level := Shift_Right (Level, PCH_BLC_PWM_CTL2_BL_MOD_FREQ_SHIFT);

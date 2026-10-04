@@ -12,9 +12,12 @@
 -- GNU General Public License for more details.
 --
 
+with HW.GFX.GMA.Config;
+with HW.GFX.GMA.Config_Helpers;
 with HW.GFX.GMA.Panel;
 with HW.GFX.GMA.PLLs;
 with HW.GFX.GMA.DPIO;
+with HW.GFX.GMA.SoC.DP;
 with HW.GFX.GMA.SoC.HDMI;
 
 with HW.Debug;
@@ -25,8 +28,43 @@ is
 
    use type SoC.SoC_Port;
 
+   -- The power sequencer and backlight PWM of a panel belong to a pipe.
+   Panel_Pipe : constant array (Valid_Panels) of PLLs.DPLL_Pipe :=
+     (Panel_1 => Primary,
+      Panel_2 => Secondary);
+
    procedure Post_Reset_Off is null;
-   procedure Initialize is null;
+
+   -- A power sequencer only works with a DP port after it locked onto
+   -- the port, which needs the port to be enabled once while the DPLL
+   -- of the pipe runs. Do it before probing, so we can power up the
+   -- panel for the AUX transfers.
+   procedure Initialize
+   is
+      Was_On, Success : Boolean;
+   begin
+      for Panel in Valid_Panels loop
+         declare
+            Port : constant Port_Type := Config.Panel_Ports (Panel);
+            Pipe : constant PLLs.DPLL_Pipe := Panel_Pipe (Panel);
+         begin
+            if Port in Active_Port_Type and then
+               Config_Helpers.To_Display_Type (Port) = DP and then
+               Config_Helpers.To_GPU_Port (Pipe, Port) in SoC.SoC_Port
+            then
+               PLLs.On_RBR (Pipe, Was_On, Success);
+               if Success then
+                  SoC.DP.Kick_Power_Sequencer
+                    (Port  => Config_Helpers.To_GPU_Port (Pipe, Port),
+                     Pipe  => Pipe);
+                  if not Was_On then
+                     PLLs.Off (Pipe);
+                  end if;
+               end if;
+            end if;
+         end;
+      end loop;
+   end Initialize;
 
    ----------------------------------------------------------------------------
 
@@ -56,17 +94,35 @@ is
       Success :=
          Pipe in PLLs.DPLL_Pipe and
          Port_Cfg.Port in SoC.SoC_Port and
-         Port_Cfg.Display = HDMI;
+         Port_Cfg.Display in DP | HDMI;
+
+      if Success and Port_Cfg.Panel in Valid_Panels then
+         Success := Pipe = Panel_Pipe (Port_Cfg.Panel);
+         pragma Debug (not Success, Debug.Put_Line
+           ("ERROR: Panel can't be driven by this pipe."));
+      end if;
 
       if Success then
-         SoC.HDMI.Prepare (Port_Cfg, Pipe);
+         if Port_Cfg.Display = HDMI then
+            SoC.HDMI.Prepare (Port_Cfg, Pipe);
+         end if;
          DPIO.Pre_PLL_Enable (Port_Cfg.Port);
          PLLs.On (Pipe, Port_Cfg, Success);
       end if;
 
       if Success then
          DPIO.Pre_Encoder_Enable (Pipe, Port_Cfg.Port);
-         SoC.HDMI.On (Port_Cfg.Port);
+         if Port_Cfg.Display = HDMI then
+            SoC.HDMI.On (Port_Cfg.Port);
+         else
+            SoC.DP.Pre_Training (Port_Cfg, Pipe);
+            Panel.On (Port_Cfg.Panel, Wait => True);
+            SoC.DP.Train (Port_Cfg, Success);
+            if not Success then
+               SoC.DP.Off (Port_Cfg.Port);
+               PLLs.Off (Pipe);
+            end if;
+         end if;
       end if;
    end Pre_On;
 
@@ -105,8 +161,12 @@ is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      if Port_Cfg.Port in SoC.SoC_Port and Port_Cfg.Display = HDMI then
-         DPIO.Reset_Lanes (Port_Cfg.Port);
+      if Port_Cfg.Port in SoC.SoC_Port then
+         if Port_Cfg.Display = HDMI then
+            DPIO.Reset_Lanes (Port_Cfg.Port);
+         elsif Port_Cfg.Display = DP then
+            SoC.DP.Off (Port_Cfg.Port);
+         end if;
       end if;
 
       if Pipe in PLLs.DPLL_Pipe then
@@ -132,6 +192,7 @@ is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
+      SoC.DP.All_Off;
       SoC.HDMI.All_Off;
    end Post_All_Off;
 

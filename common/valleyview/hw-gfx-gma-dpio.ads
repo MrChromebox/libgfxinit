@@ -55,6 +55,8 @@ private package HW.GFX.GMA.DPIO is
 
    procedure Reset_Lanes (Port : DPIO_Port);
 
-   procedure Wait_Port_Ready (Port : DPIO_Port);
+   procedure Wait_Port_Ready
+     (Port    : in     DPIO_Port;
+      Success :    out Boolean);
 
 end HW.GFX.GMA.DPIO;

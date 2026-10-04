@@ -240,14 +240,18 @@ package body HW.GFX.GMA.DPIO is
    end Reset_Lanes;
 
    -- i915: vlv_wait_port_ready()
-   procedure Wait_Port_Ready (Port : DPIO_Port) is
+   procedure Wait_Port_Ready
+     (Port    : in     DPIO_Port;
+      Success :    out Boolean)
+   is
    begin
       Registers.Wait_Unset_Mask
         (Register => Registers.GMCH_DPLL_A,
          Mask     => (if Port = DIGI_B
                       then DPLL_PORTB_READY_MASK
                       else DPLL_PORTC_READY_MASK),
-         TOut_MS  => 1_000);
+         TOut_MS  => 1_000,
+         Success  => Success);
    end Wait_Port_Ready;
 
 end HW.GFX.GMA.DPIO;

@@ -488,6 +488,9 @@ private package HW.GFX.GMA.Config is
 
    ----------------------------------------------------------------------------
 
+   Display_Base_Offset : constant :=
+     (if Gen_Valleyview then 16#18_0000# else 0);
+
    GMA_Phys_Base_Index : constant PCI.Index :=
       (if Config.Tigerlake_On then 16#c0# else 16#5c#);
 

@@ -73,7 +73,7 @@ is
       Index_T     => GTT_Range,
       Array_T     => GTT_Registers_64);
 
-   GTT_PTE_Valid : constant := 1;
+   GTT_PTE_Valid     : constant := 1 * 2 ** 0;
 
    ----------------------------------------------------------------------------
 

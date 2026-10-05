@@ -275,6 +275,24 @@ is
          end;
       end if;
 
+      -- On Braswell, port D can only be driven by the tertiary pipe.
+      if Config.Has_Fixed_Port_D_Pipe then
+         for Pipe in Pipe_Index range Primary .. Secondary loop
+            if Configs (Pipe).Port in DP3 | HDMI3 then
+               if Pipe_Index'Min (Max_Pipe, Config.Max_Pipe) = Tertiary then
+                  declare
+                     Tmp : constant Pipe_Config := Configs (Tertiary);
+                  begin
+                     Configs (Tertiary) := Configs (Pipe);
+                     Configs (Pipe) := Tmp;
+                  end;
+               else
+                  Configs (Pipe).Port := Disabled;
+               end if;
+            end if;
+         end loop;
+      end if;
+
       -- With per-pipe panel power sequencers, panel 1 has to be driven
       -- by the primary and panel 2 by the secondary pipe.
       if Config.Has_Per_Pipe_Panel_Power and then

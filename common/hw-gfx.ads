@@ -130,6 +130,7 @@ package HW.GFX is
       H_Sync_Active_High   : Boolean;
       V_Sync_Active_High   : Boolean;
       BPC                  : BPC_Type;
+      HDMI_Sink            : Boolean;
    end record;
 
    ----------------------------------------------------------------------------
@@ -140,40 +141,40 @@ package HW.GFX is
    -- Dotclock is calculated using: Refresh_Rate * H_Total * V_Total
 
    M2560x1600_60 : constant Mode_Type := Mode_Type'
-      (60*(2720*1646), 2560, 2608, 2640, 2720, 1600, 1603, 1609, 1646, True, True, Auto_BPC);
+      (60*(2720*1646), 2560, 2608, 2640, 2720, 1600, 1603, 1609, 1646, True, True, Auto_BPC, False);
 
    M2560x1440_60 : constant Mode_Type := Mode_Type'
-      (60*(2720*1481), 2560, 2608, 2640, 2720, 1440, 1443, 1448, 1481, True, False, Auto_BPC);
+      (60*(2720*1481), 2560, 2608, 2640, 2720, 1440, 1443, 1448, 1481, True, False, Auto_BPC, False);
 
    M1920x1200_60 : constant Mode_Type := Mode_Type'
-      (60*(2080*1235), 1920, 1968, 2000, 2080, 1200, 1203, 1209, 1235, False, False, Auto_BPC);
+      (60*(2080*1235), 1920, 1968, 2000, 2080, 1200, 1203, 1209, 1235, False, False, Auto_BPC, False);
 
    M1920x1080_60 : constant Mode_Type := Mode_Type'
-      (60*(2185*1135), 1920, 2008, 2052, 2185, 1080, 1084, 1089, 1135, False, False, Auto_BPC);
+      (60*(2185*1135), 1920, 2008, 2052, 2185, 1080, 1084, 1089, 1135, False, False, Auto_BPC, False);
 
    M1680x1050_60 : constant Mode_Type := Mode_Type'
-      (60*(2256*1087), 1680, 1784, 1968, 2256, 1050, 1051, 1054, 1087, False, True, Auto_BPC);
+      (60*(2256*1087), 1680, 1784, 1968, 2256, 1050, 1051, 1054, 1087, False, True, Auto_BPC, False);
 
    M1600x1200_60 : constant Mode_Type := Mode_Type'
-      (60*(2160*1250), 1600, 1664, 1856, 2160, 1200, 1201, 1204, 1250, True, True, Auto_BPC);
+      (60*(2160*1250), 1600, 1664, 1856, 2160, 1200, 1201, 1204, 1250, True, True, Auto_BPC, False);
 
    M1600x900_60 : constant Mode_Type := Mode_Type'
-      (60*(2010*912), 1600, 1664, 1706, 2010, 900, 903, 906, 912, False, False, Auto_BPC);
+      (60*(2010*912), 1600, 1664, 1706, 2010, 900, 903, 906, 912, False, False, Auto_BPC, False);
 
    M1440x900_60 : constant Mode_Type := Mode_Type'
-      (60*(1834*920), 1440, 1488, 1520, 1834, 900, 903, 909, 920, False, False, Auto_BPC);
+      (60*(1834*920), 1440, 1488, 1520, 1834, 900, 903, 909, 920, False, False, Auto_BPC, False);
 
    M1366x768_60 : constant Mode_Type := Mode_Type'
-      (60*(1446*788), 1366, 1414, 1446, 1466, 768, 769, 773, 788, False, False, Auto_BPC);
+      (60*(1446*788), 1366, 1414, 1446, 1466, 768, 769, 773, 788, False, False, Auto_BPC, False);
 
    M1280x1024_60 : constant Mode_Type := Mode_Type'
-      (60*(1712*1063), 1280, 1368, 1496, 1712, 1024, 1027, 1034, 1063, False, True, Auto_BPC);
+      (60*(1712*1063), 1280, 1368, 1496, 1712, 1024, 1027, 1034, 1063, False, True, Auto_BPC, False);
 
    M1024x768_60 : constant Mode_Type := Mode_Type'
-      (60*(1344*806), 1024, 1048, 1184, 1344, 768, 771, 777, 806, False, False, Auto_BPC);
+      (60*(1344*806), 1024, 1048, 1184, 1344, 768, 771, 777, 806, False, False, Auto_BPC, False);
 
    Invalid_Mode : constant Mode_Type := Mode_Type'
-      (Frequency_Type'First, 1, 1, 1, 1, 1, 1, 1, 1, False, False, Auto_BPC);
+      (Frequency_Type'First, 1, 1, 1, 1, 1, 1, 1, 1, False, False, Auto_BPC, False);
 
 private
 

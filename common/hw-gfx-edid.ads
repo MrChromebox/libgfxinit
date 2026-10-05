@@ -66,4 +66,15 @@ is
    with
       Pre => Valid (Raw_EDID) and then Has_Preferred_Mode (Raw_EDID);
 
+   EXTENSIONS : constant := 126;
+
+   function Has_Extension (Raw_EDID : Raw_EDID_Data) return Boolean is
+     (Raw_EDID (EXTENSIONS) /= 0)
+   with
+      Pre => Valid (Raw_EDID);
+
+   -- Check whether a CEA-861 extension block contains an HDMI VSDB.
+   -- Returns False if the block isn't a valid CEA-861 extension.
+   function Has_HDMI_Sink (Raw_Ext : Raw_EDID_Data) return Boolean;
+
 end HW.GFX.EDID;

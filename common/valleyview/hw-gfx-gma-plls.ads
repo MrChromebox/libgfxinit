@@ -1,4 +1,5 @@
 --
+-- Copyright (C) 2020 Angel Pons <th3fanbus@gmail.com>
 -- Copyright (C) 2026 Matt DeVillier <matt.devillier@gmail.com>
 --
 -- This program is free software; you can redistribute it and/or modify
@@ -11,6 +12,8 @@
 -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 -- GNU General Public License for more details.
 --
+
+with HW.GFX.GMA.DPIO_CHV;
 
 private package HW.GFX.GMA.PLLs
 with
@@ -26,7 +29,7 @@ is
    type T is (Invalid_PLL, Pipe_DPLL);
    Invalid : constant T := Invalid_PLL;
 
-   subtype DPLL_Pipe is Pipe_Index range Primary .. Secondary;
+   subtype DPLL_Pipe is Pipe_Index;
 
    procedure Initialize
    with
@@ -52,9 +55,38 @@ is
    -- already running. Needed to kick the panel power sequencer of a pipe.
    procedure On_RBR
      (Pipe     : in     DPLL_Pipe;
+      Port     : in     GPU_Port;
       Was_On   :    out Boolean;
       Success  :    out Boolean);
 
+   -- Turn the DPLL off again, after it was enabled by On_RBR().
+   procedure Off_RBR (Pipe : DPLL_Pipe; Port : GPU_Port);
+
    procedure Off (Pipe : DPLL_Pipe);
+
+   ----------------------------------------------------------------------------
+
+   -- The lanes of the Braswell PHYs are powered through the write-only
+   -- DISPLAY_PHY_CONTROL register. We keep a copy of it here.
+
+   -- Reconstruct DISPLAY_PHY_CONTROL from the current state of the PHYs.
+   procedure PHY_Control_Init (PHY0_On, PHY1_On : Boolean);
+
+   procedure PHY_Common_Lane_Reset_Deassert (PHY : DPIO_CHV.PHY_Type);
+   procedure PHY_Common_Lane_Reset_Assert (PHY : DPIO_CHV.PHY_Type);
+
+   -- Power the lanes of the port and prepare them, before the DPLL
+   -- of the pipe is enabled.
+   procedure PHY_Pre_PLL_Enable
+     (Pipe        : DPLL_Pipe;
+      Port        : DPIO_CHV.CHV_Port;
+      Lane_Count  : DP_Lane_Count);
+
+   -- Has to be called after the encoder is enabled.
+   procedure PHY_Post_Encoder_Enable;
+
+   procedure PHY_Post_PLL_Disable
+     (Pipe  : DPLL_Pipe;
+      Port  : DPIO_CHV.CHV_Port);
 
 end HW.GFX.GMA.PLLs;

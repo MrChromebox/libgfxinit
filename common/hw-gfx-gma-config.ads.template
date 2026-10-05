@@ -33,7 +33,7 @@ private package HW.GFX.GMA.Config is
      (case Gen is
          when I945         => Pineview_M,
          when G45          => GM45,
-         when Valleyview   => Baytrail,
+         when Valleyview   => Braswell,
          when Ironlake     => Ivybridge,
          when Haswell      => Broadwell,
          when Broxton      => Broxton,
@@ -187,6 +187,8 @@ private package HW.GFX.GMA.Config is
    CPU_Any_Pineview  : <i945bool> := CPU_Pineview or CPU_Pineview_M;
    GMCH_Gen3_Mobile  : <i945bool> := GMCH_I945GM or CPU_Pineview_M;
    GMCH_GM45         : <g45bool> := Gen_G45 and then CPU = GM45;
+   CPU_Baytrail      : <vlvbool> := Gen_Valleyview and then CPU = Baytrail;
+   CPU_Braswell      : <vlvbool> := Gen_Valleyview and then CPU = Braswell;
    CPU_Ironlake      : <ilkbool> := Gen_Ironlake and then CPU = Ironlake;
    CPU_Sandybridge   : <ilkbool> := Gen_Ironlake and then CPU = Sandybridge;
    CPU_Ivybridge     : <ilkbool> := Gen_Ironlake and then CPU = Ivybridge;
@@ -227,7 +229,7 @@ private package HW.GFX.GMA.Config is
    Has_Presence_Straps           : <genbool> := not Gen_Broxton and not Gen_I945;
 
    ---------- CPU pipe: ---------
-   Has_Tertiary_Pipe             : <ilkbool> := Ivybridge_On;
+   Has_Tertiary_Pipe             : <ilkvlvbool> := Ivybridge_On or CPU_Braswell;
    Disable_Trickle_Feed          : <genbool> :=
      (not Gen_Haswell and not Gen_I945 and not Gen_Valleyview);
    Pipe_Enabled_Workaround       : <hswbool> := CPU_Broadwell;
@@ -360,9 +362,15 @@ private package HW.GFX.GMA.Config is
 
    Has_Per_Pipe_SRD              : <hswbool> := Broadwell_On;
 
+   ----------- Valleyview: ------
+   Has_CHV_PHY                   : <vlvbool> := CPU_Braswell;
+   Has_VLV_DAC                   : <vlvbool> := CPU_Baytrail;
+   -- Port D can only be driven by pipe C, ports B and C by pipes A and B
+   Has_Fixed_Port_D_Pipe         : <vlvbool> := CPU_Braswell;
+
    ----------- GTT: -------------
-   Has_64bit_GTT                 : <hswbool> := Broadwell_On;
-   Has_Writeable_GTT_PTE         : <genbool> := Gen_Valleyview;
+   Has_64bit_GTT                 : <hswvlvbool> := Broadwell_On or CPU_Braswell;
+   Has_Writeable_GTT_PTE         : <vlvbool> := CPU_Baytrail;
 
    ----------- Type-C: ----------
    Has_Type_C_Ports              : <genbool> := Tigerlake_On;
@@ -379,7 +387,7 @@ private package HW.GFX.GMA.Config is
 
    ----------------------------------------------------------------------------
 
-   Max_Pipe : <ilkvar> Pipe_Index :=
+   Max_Pipe : <ilkvlvvar> Pipe_Index :=
      (if Has_Tertiary_Pipe then Tertiary else Secondary);
 
    Last_Digital_Port : <hswsklvar> Digital_Port :=
@@ -456,11 +464,11 @@ private package HW.GFX.GMA.Config is
 
    type Width_Per_Pipe is array (Pipe_Index) of Width_Type;
 
-   Maximum_Scalable_Width : <hswvar> Width_Per_Pipe :=
+   Maximum_Scalable_Width : <hswvlvvar> Width_Per_Pipe :=
      (if Gen_I945 or Gen_G45 or Gen_Valleyview then
         (Primary     => 4096,
          Secondary   => 2048,
-         Tertiary    => Pos32'First)
+         Tertiary    => (if CPU_Braswell then 2048 else Pos32'First))
       elsif Gen_Ironlake or CPU_Haswell then
         (Primary     => 4096,
          Secondary   => 2048,
@@ -481,12 +489,12 @@ private package HW.GFX.GMA.Config is
    ----------------------------------------------------------------------------
 
    -- FIXME: Unknown for Broxton, Linux' i915 contains a fixme too :-D
-   HDMI_Max_Clock_24bpp : constant Frequency_Type :=
-     (case Gen is
-         when Generation'First .. G45  => 165_000_000, -- i945: no HDMI, moot
-         when Valleyview .. Ironlake   => 225_000_000,
-         when Haswell .. Skylake       => 300_000_000,
-         when Tigerlake .. AlderlakeP  => 600_000_000);
+   HDMI_Max_Clock_24bpp : <vlvvar> Frequency_Type :=
+     (if    Up_To_G45         then 165_000_000 -- i945: no HDMI, moot
+      elsif CPU_Braswell      then 300_000_000
+      elsif Up_To_Ironlake    then 225_000_000
+      elsif not Tigerlake_On  then 300_000_000
+                              else 600_000_000);
 
    ----------------------------------------------------------------------------
 
@@ -510,9 +518,9 @@ private package HW.GFX.GMA.Config is
    MMIO_GTT_32_Offset : <g45var> Natural :=
      (if GMCH_GM965 then 16#0008_0000# else Default_MMIO_GTT_32_Offset);
    MMIO_GTT_64_Offset : constant Natural := 16#80_0000#;
-   MMIO_GTT_Offset : <g45hswvar> Natural :=
+   MMIO_GTT_Offset : <g45vlvhswvar> Natural :=
      (if Has_64bit_GTT then MMIO_GTT_64_Offset else MMIO_GTT_32_Offset);
-   GTT_PTE_Size : <hswvar> Natural := (if Has_64bit_GTT then 8 else 4);
+   GTT_PTE_Size : <vlvhswvar> Natural := (if Has_64bit_GTT then 8 else 4);
 
    Fence_Base : <i945ilkvar> Natural :=
      (if    Gen_I945                  then 16#0000_2000#
@@ -672,6 +680,7 @@ private package HW.GFX.GMA.Config is
          when G45          => (Device_Id and 16#ff02#) = 16#2e02#,
          when GM45         => (Device_Id and 16#fffe#) = 16#2a42#,
          when Baytrail     => (Device_Id and 16#fffc#) = 16#0f30#,
+         when Braswell     => (Device_Id and 16#fffc#) = 16#22b0#,
          when Ironlake     => (Device_Id and 16#fff3#) = 16#0042#,
          when Sandybridge  => (Device_Id and 16#ffc2#) = 16#0102#,
          when Ivybridge    => (Device_Id and 16#ffc3#) = 16#0142#,

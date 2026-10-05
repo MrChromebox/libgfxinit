@@ -55,6 +55,7 @@ is
       G45,
       GM45,
       Baytrail,
+      Braswell,
       Ironlake,
       Sandybridge,
       Ivybridge,

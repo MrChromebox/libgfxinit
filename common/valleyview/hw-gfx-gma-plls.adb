@@ -137,7 +137,7 @@ is
          Success := Port_Cfg.DP.Bandwidth in DP_Rate;
          Dividers := DP_Dividers
            (if Success then Port_Cfg.DP.Bandwidth else DP_Rate'First);
-      elsif Port_Cfg.Display = HDMI then
+      elsif Port_Cfg.Display in HDMI | VGA then
          Calculate_Dividers
            (Target   => Div_Round_Closest (Port_Cfg.Mode.Dotclock, 1_000),
             Dividers => Dividers,

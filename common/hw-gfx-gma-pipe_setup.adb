@@ -140,6 +140,7 @@ package body HW.GFX.GMA.Pipe_Setup is
    GMCH_PFIT_CONTROL_SELECT_MASK       : constant := 3 * 2 ** 29;
    GMCH_PFIT_CONTROL_SELECT_PIPE_A     : constant := 0 * 2 ** 29;
    GMCH_PFIT_CONTROL_SELECT_PIPE_B     : constant := 1 * 2 ** 29;
+   GMCH_PFIT_CONTROL_SELECT_PIPE_C     : constant := 2 * 2 ** 29;
    GMCH_PFIT_CONTROL_SCALING_MASK      : constant := 3 * 2 ** 26;
    GMCH_PFIT_CONTROL_SCALING : constant array (Scaling_Aspect) of Word32 :=
      (Uniform     => 0 * 2 ** 26,
@@ -988,7 +989,7 @@ package body HW.GFX.GMA.Pipe_Setup is
            (case Controller.Pipe is
                when Primary   => GMCH_PFIT_CONTROL_SELECT_PIPE_A,
                when Secondary => GMCH_PFIT_CONTROL_SELECT_PIPE_B,
-               when others    => 0);
+               when Tertiary  => GMCH_PFIT_CONTROL_SELECT_PIPE_C);
 
       -- Work around a quirk:
       -- In legacy VGA mode Pillarbox fails to display anything so just force
@@ -1019,18 +1020,20 @@ package body HW.GFX.GMA.Pipe_Setup is
 
    procedure Gmch_Panel_Fitter_Pipe (Pipe : out Pipe_Index)
    is
-      Used_For_Secondary : Boolean;
+      PF_Ctrl : Word32;
    begin
       if Config.Gen_I945 then
          -- Gen3: panel fitter is hardwired to Pipe B (Secondary).
          -- The PFIT_PIPE field (bits 30:29) does not exist on Gen3.
          Pipe := Secondary;
       else
-         Registers.Is_Set_Mask
-           (Register => Registers.GMCH_PFIT_CONTROL,
-            Mask     => GMCH_PFIT_CONTROL_SELECT_PIPE_B,
-            Result   => Used_For_Secondary);
-         Pipe := (if Used_For_Secondary then Secondary else Primary);
+         Registers.Read (Registers.GMCH_PFIT_CONTROL, PF_Ctrl);
+         PF_Ctrl := PF_Ctrl and GMCH_PFIT_CONTROL_SELECT_MASK;
+         Pipe :=
+           (if    PF_Ctrl = GMCH_PFIT_CONTROL_SELECT_PIPE_B then Secondary
+            elsif PF_Ctrl = GMCH_PFIT_CONTROL_SELECT_PIPE_C and
+                  Config.Has_Tertiary_Pipe then Tertiary
+            else  Primary);
       end if;
    end Gmch_Panel_Fitter_Pipe;
 

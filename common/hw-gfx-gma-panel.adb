@@ -212,8 +212,10 @@ is
    VLV_BLC_PWM_CTL_FREQ_SHIFT          : constant :=                    16;
    VLV_BLC_PWM_CTL_DUTY_CYC_MASK       : constant := 16#00_ffff# * 2 **  0;
 
-   -- 200Hz, assuming the 25MHz PWM clock (CBR1) and its fixed divider of 16
-   VLV_BLC_PWM_DEFAULT_FREQ            : constant := 25_000_000 / 16 / 200;
+   -- 200Hz, assuming the PWM clock selected by CBR1 = 0 (25MHz, or
+   -- 19.2MHz on Braswell) and its fixed divider of 16
+   function VLV_BLC_PWM_DEFAULT_FREQ return Word32 is
+     ((if Config.CPU_Braswell then 19_200_000 else 25_000_000) / 16 / 200);
 
    type VLV_BLC_Regs is record
       CTL2  : Registers.Registers_Index;

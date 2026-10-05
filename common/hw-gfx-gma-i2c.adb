@@ -40,6 +40,8 @@ package body HW.GFX.GMA.I2C is
    GMBUS0_PIN_PAIR_SELECT_DIGI_C    : constant :=   4 * 2 **  0;
    GMBUS0_PIN_PAIR_SELECT_DIGI_B    : constant :=   5 * 2 **  0;
    GMBUS0_PIN_PAIR_SELECT_DIGI_D    : constant :=   6 * 2 **  0;
+   -- Braswell uses the LVDS pins for port D
+   GMBUS0_PIN_PAIR_SELECT_CHV_D     : constant :=   3 * 2 **  0;
    -- Broxton and later use different pins
    GMBUS0_PIN_PAIR_SELECT_BXT_B     : constant :=   1 * 2 **  0;
    GMBUS0_PIN_PAIR_SELECT_BXT_C     : constant :=   2 * 2 **  0;
@@ -147,7 +149,10 @@ package body HW.GFX.GMA.I2C is
                when PCH_LVDS     => GMBUS0_PIN_PAIR_SELECT_LVDS,
                when PCH_HDMI_B   => GMBUS0_PIN_PAIR_SELECT_DIGI_B,
                when PCH_HDMI_C   => GMBUS0_PIN_PAIR_SELECT_DIGI_C,
-               when PCH_HDMI_D   => GMBUS0_PIN_PAIR_SELECT_DIGI_D,
+               when PCH_HDMI_D   =>
+                 (if Config.Has_CHV_PHY
+                  then GMBUS0_PIN_PAIR_SELECT_CHV_D
+                  else GMBUS0_PIN_PAIR_SELECT_DIGI_D),
                when others       => GMBUS0_PIN_PAIR_SELECT_NONE));
    end GMBUS0_PIN_PAIR_SELECT;
 

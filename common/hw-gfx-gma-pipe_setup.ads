@@ -389,10 +389,15 @@ private
             BASE     => Registers.CURABASE,
             POS      => Registers.CURAPOS,
             FBC_CTL  => Registers.Invalid_Register)
-         else
+         elsif Pipe = Secondary then
            (CTL      => Registers.CURBCNTR,
             BASE     => Registers.CURBBASE,
             POS      => Registers.CURBPOS,
+            FBC_CTL  => Registers.Invalid_Register)
+         else
+           (CTL      => Registers.CHV_CURCCNTR,
+            BASE     => Registers.CHV_CURCBASE,
+            POS      => Registers.CHV_CURCPOS,
             FBC_CTL  => Registers.Invalid_Register))
       else
         (if Pipe = Primary then

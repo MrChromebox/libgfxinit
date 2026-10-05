@@ -129,12 +129,16 @@ package body HW.GFX.GMA.Transcoder is
          when DDI_TC5 => 8 * 2 ** 27,
          when DDI_TC6 => 9 * 2 ** 27);
 
-   type DDI_Mode_Array is array (Display_Type) of Word32;
-   DDI_FUNC_CTL_MODE_SELECT : constant DDI_Mode_Array :=
-     (VGA      => DDI_FUNC_CTL_MODE_SELECT_FDI,
-      HDMI     => DDI_FUNC_CTL_MODE_SELECT_DVI,
-      DP       => DDI_FUNC_CTL_MODE_SELECT_DP_SST,
-      others   => 0);
+   function DDI_FUNC_CTL_MODE_SELECT (Port_Cfg : Port_Config) return Word32
+   is
+     (case Port_Cfg.Display is
+         when VGA    => DDI_FUNC_CTL_MODE_SELECT_FDI,
+         when HDMI   =>
+           (if Port_Cfg.Sink_Caps.HDMI_Sink
+            then DDI_FUNC_CTL_MODE_SELECT_HDMI
+            else DDI_FUNC_CTL_MODE_SELECT_DVI),
+         when DP     => DDI_FUNC_CTL_MODE_SELECT_DP_SST,
+         when others => 0);
 
    type HV_Sync_Array is array (Boolean) of Word32;
    DDI_FUNC_CTL_VSYNC : constant HV_Sync_Array :=
@@ -334,7 +338,7 @@ package body HW.GFX.GMA.Transcoder is
             Registers.Write
               (Register => Trans.DDI_FUNC_CTL,
                Value    => DDI_Select or
-                        DDI_FUNC_CTL_MODE_SELECT (Port_Cfg.Display) or
+                        DDI_FUNC_CTL_MODE_SELECT (Port_Cfg) or
                         DDI_FUNC_CTL_BPC (Port_Cfg.Mode.BPC) or
                         DDI_FUNC_CTL_VSYNC (Port_Cfg.Mode.V_Sync_Active_High) or
                         DDI_FUNC_CTL_HSYNC (Port_Cfg.Mode.H_Sync_Active_High) or

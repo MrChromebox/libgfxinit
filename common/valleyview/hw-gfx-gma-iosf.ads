@@ -15,7 +15,9 @@
 
 private package HW.GFX.GMA.IOSF is
 
-   type Unit_Type is (CCK, CCU, PUnit, DPIO);
+   -- DPIO is the PHY of ports B and C on Bay Trail and the PHY of
+   -- port D on Braswell. DPIO_2 is the PHY of ports B and C on Braswell.
+   type Unit_Type is (CCK, CCU, PUnit, DPIO, DPIO_2);
 
    procedure Read
      (Unit     : in     Unit_Type;

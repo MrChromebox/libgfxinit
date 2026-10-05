@@ -1,6 +1,8 @@
 gfxinit-y += hw-gfx-gma-connectors.adb
 gfxinit-y += hw-gfx-gma-dpio.adb
 gfxinit-y += hw-gfx-gma-dpio.ads
+gfxinit-y += hw-gfx-gma-dpio_chv.adb
+gfxinit-y += hw-gfx-gma-dpio_chv.ads
 gfxinit-y += hw-gfx-gma-iosf.adb
 gfxinit-y += hw-gfx-gma-iosf.ads
 gfxinit-y += hw-gfx-gma-plls.adb

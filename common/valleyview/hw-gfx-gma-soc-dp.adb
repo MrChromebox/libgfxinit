@@ -16,6 +16,8 @@ with HW.GFX.DP_Training;
 with HW.GFX.GMA.DP_Aux_Ch;
 with HW.GFX.GMA.DP_Info;
 with HW.GFX.GMA.Registers;
+with HW.GFX.GMA.DPIO;
+with HW.GFX.GMA.DPIO_CHV;
 
 with HW.Debug;
 with GNAT.Source_Info;
@@ -25,7 +27,8 @@ package body HW.GFX.GMA.SoC.DP is
    type DP_Array is array (SoC_Port) of Registers.Registers_Index;
    DP_CTL : constant DP_Array :=
      (DIGI_B => Registers.GMCH_DP_B,
-      DIGI_C => Registers.GMCH_DP_C);
+      DIGI_C => Registers.GMCH_DP_C,
+      DIGI_D => Registers.GMCH_DP_D);
 
    DP_CTL_DISPLAY_PORT_ENABLE          : constant := 1 * 2 ** 31;
    DP_CTL_PORT_WIDTH_SHIFT             : constant :=          19;
@@ -84,6 +87,41 @@ package body HW.GFX.GMA.SoC.DP is
       DP_Info.Emph_Level_2 => 16#0000_0000#,
       DP_Info.Emph_Level_3 => 16#0000_6000#);
 
+   -- i915: chv_set_signal_levels()
+   type CHV_PHY_Levels is record
+      Valid             : Boolean;
+      Margin            : Word32;
+      Uniq_Trans_Scale  : Boolean;
+   end record;
+   CHV_Invalid_Levels : constant CHV_PHY_Levels := (False, 0, False);
+
+   type CHV_PHY_Levels_Array is
+      array (DP_Info.DP_Pre_Emph, DP_Info.DP_Voltage_Swing) of CHV_PHY_Levels;
+   CHV_Levels : constant CHV_PHY_Levels_Array :=
+     (DP_Info.Emph_Level_0 =>
+        (DP_Info.VS_Level_0 => (True,  52, False),
+         DP_Info.VS_Level_1 => (True,  77, False),
+         DP_Info.VS_Level_2 => (True, 102, False),
+         DP_Info.VS_Level_3 => (True, 154, True)),
+      DP_Info.Emph_Level_1 =>
+        (DP_Info.VS_Level_0 => (True,  78, False),
+         DP_Info.VS_Level_1 => (True, 116, False),
+         DP_Info.VS_Level_2 => (True, 154, False),
+         DP_Info.VS_Level_3 => CHV_Invalid_Levels),
+      DP_Info.Emph_Level_2 =>
+        (DP_Info.VS_Level_0 => (True, 104, False),
+         DP_Info.VS_Level_1 => (True, 154, False),
+         others             => CHV_Invalid_Levels),
+      DP_Info.Emph_Level_3 =>
+        (DP_Info.VS_Level_0 => (True, 154, False),
+         others             => CHV_Invalid_Levels));
+
+   CHV_De_Emphasis : constant array (DP_Info.DP_Pre_Emph) of Word32 :=
+     (DP_Info.Emph_Level_0 => 128,
+      DP_Info.Emph_Level_1 =>  85,
+      DP_Info.Emph_Level_2 =>  64,
+      DP_Info.Emph_Level_3 =>  43);
+
    ----------------------------------------------------------------------------
 
    pragma Warnings (GNATprove, Off, "unused variable ""Port""",
@@ -135,8 +173,18 @@ package body HW.GFX.GMA.SoC.DP is
    is
       PHY : PHY_Levels renames
          Levels (Train_Set.Pre_Emph, Train_Set.Voltage_Swing);
+      CHV_PHY : CHV_PHY_Levels renames
+         CHV_Levels (Train_Set.Pre_Emph, Train_Set.Voltage_Swing);
    begin
-      if PHY.Valid then
+      if Config.Has_CHV_PHY and CHV_PHY.Valid then
+         DPIO_CHV.Set_Signal_Levels
+           (Port              => Port,
+            Lane_Count        => Link.Lane_Count,
+            De_Emphasis       => CHV_De_Emphasis (Train_Set.Pre_Emph),
+            Margin            => CHV_PHY.Margin,
+            Uniq_Trans_Scale  => CHV_PHY.Uniq_Trans_Scale);
+      elsif not Config.Has_CHV_PHY and PHY.Valid and Port in DPIO.DPIO_Port
+      then
          DPIO.Set_Signal_Levels
            (Port           => Port,
             De_Emphasis    => PHY.De_Emphasis,
@@ -187,7 +235,7 @@ package body HW.GFX.GMA.SoC.DP is
          DP_CTL_LINK_TRAIN (DP_Info.TP_1) or
          (if Port_Cfg.DP.Enhanced_Framing
           then DP_CTL_ENHANCED_FRAMING_ENABLE else 0) or
-         PORT_PIPE_SELECT (Pipe) or
+         DP_PIPE_SELECT (Pipe) or
          Sync_Polarity;
 
       -- The port has to be set up before it's enabled with a second
@@ -208,7 +256,8 @@ package body HW.GFX.GMA.SoC.DP is
       function To_DP (Port : SoC_Port) return DP_Port is
         (case Port is
             when DIGI_B => DP_B,
-            when DIGI_C => DP_C);
+            when DIGI_C => DP_C,
+            when DIGI_D => DP_D);
 
       package Training is new DP_Training
         (TPS3_Supported    => False,
@@ -225,7 +274,14 @@ package body HW.GFX.GMA.SoC.DP is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      DPIO.Wait_Port_Ready (Port_Cfg.Port);
+      if Config.Has_CHV_PHY then
+         DPIO_CHV.Wait_Port_Ready
+           (Port           => Port_Cfg.Port,
+            Unused_Lanes   =>
+               DPIO_CHV.Unused_Lane_Mask (Port_Cfg.DP.Lane_Count));
+      elsif Port_Cfg.Port in DPIO.DPIO_Port then
+         DPIO.Wait_Port_Ready (Port_Cfg.Port);
+      end if;
 
       Training.Train_DP
         (Port     => Port_Cfg.Port,
@@ -250,7 +306,7 @@ package body HW.GFX.GMA.SoC.DP is
          (DP_Ctl_Value and DP_CTL_PORT_DETECT) or
          DP_CTL_PORT_WIDTH (DP_Lane_Count_1) or
          DP_CTL_LINK_TRAIN (DP_Info.TP_1) or
-         PORT_PIPE_SELECT (Pipe);
+         DP_PIPE_SELECT (Pipe);
 
       Registers.Write (DP_CTL (Port), DP_Ctl_Value);
       Registers.Posting_Read (DP_CTL (Port));
@@ -269,7 +325,7 @@ package body HW.GFX.GMA.SoC.DP is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      for Port in SoC_Port loop
+      for Port in SoC_Port range SoC_Port'First .. Last_Port loop
          Off (Port);
       end loop;
    end All_Off;

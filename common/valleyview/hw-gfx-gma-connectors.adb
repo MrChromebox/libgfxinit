@@ -17,6 +17,8 @@ with HW.GFX.GMA.Config_Helpers;
 with HW.GFX.GMA.Panel;
 with HW.GFX.GMA.PLLs;
 with HW.GFX.GMA.DPIO;
+with HW.GFX.GMA.DPIO_CHV;
+with HW.GFX.GMA.Registers;
 with HW.GFX.GMA.SoC.DP;
 with HW.GFX.GMA.SoC.HDMI;
 with HW.GFX.GMA.SoC.VGA;
@@ -33,6 +35,20 @@ is
    Panel_Pipe : constant array (Valid_Panels) of PLLs.DPLL_Pipe :=
      (Panel_1 => Primary,
       Panel_2 => Secondary);
+
+   -- Panels can only be attached to the ports driven by pipes A and B.
+   subtype Panel_Port is SoC.SoC_Port range DIGI_B .. DIGI_C;
+
+   function Lane_Count (Port_Cfg : Port_Config) return DP_Lane_Count is
+     (if Port_Cfg.Display = DP
+      then Port_Cfg.DP.Lane_Count
+      else DP_Lane_Count_4);
+
+   -- Port clock in kHz, like in i915.
+   function Port_Clock (Port_Cfg : Port_Config) return Int64 is
+     (if Port_Cfg.Display = DP
+      then DP_Symbol_Rate (Port_Cfg.DP.Bandwidth) / 1_000
+      else Port_Cfg.Mode.Dotclock / 1_000);
 
    procedure Post_Reset_Off is null;
 
@@ -51,10 +67,10 @@ is
          begin
             if Port in Active_Port_Type and then
                Config_Helpers.To_Display_Type (Port) = DP and then
-               Config_Helpers.To_GPU_Port (Pipe, Port) in SoC.SoC_Port
+               Config_Helpers.To_GPU_Port (Pipe, Port) in Panel_Port
             then
                declare
-                  GPU_Port : constant SoC.SoC_Port :=
+                  GPU_Port : constant Panel_Port :=
                      Config_Helpers.To_GPU_Port (Pipe, Port);
                begin
                   PLLs.On_RBR (Pipe, GPU_Port, Was_On, Success);
@@ -83,6 +99,64 @@ is
 
    ----------------------------------------------------------------------------
 
+   -- Disables everything Pre_On() enabled after the lanes were powered.
+   procedure CHV_Off (Pipe : Pipe_Index; Port_Cfg : Port_Config)
+   with
+      Pre => Port_Cfg.Port in SoC.SoC_Port
+   is
+   begin
+      if Port_Cfg.Display = DP then
+         SoC.DP.Off (Port_Cfg.Port);
+      end if;
+      DPIO_CHV.Data_Lane_Soft_Reset
+        (Port        => Port_Cfg.Port,
+         Lane_Count  => Lane_Count (Port_Cfg),
+         Reset       => True);
+      PLLs.Off (Pipe);
+      PLLs.PHY_Post_PLL_Disable (Pipe, Port_Cfg.Port);
+   end CHV_Off;
+
+   procedure CHV_Pre_On
+     (Pipe     : in     Pipe_Index;
+      Port_Cfg : in     Port_Config;
+      Success  :    out Boolean)
+   with
+      Pre => Port_Cfg.Port in SoC.SoC_Port
+   is
+   begin
+      -- Pipe B has a blender, it has to be in legacy mode.
+      if Pipe = Secondary then
+         Registers.Write (Registers.CHV_BLEND_B, 0);
+         Registers.Write (Registers.CHV_CANVAS_B, 0);
+      end if;
+
+      if Port_Cfg.Display = HDMI then
+         SoC.HDMI.Prepare (Port_Cfg, Pipe);
+      end if;
+      PLLs.PHY_Pre_PLL_Enable (Pipe, Port_Cfg.Port, Lane_Count (Port_Cfg));
+      PLLs.On (Pipe, Port_Cfg, Success);
+
+      if Success then
+         DPIO_CHV.Pre_Encoder_Enable
+           (Port        => Port_Cfg.Port,
+            Lane_Count  => Lane_Count (Port_Cfg),
+            Port_Clock  => Port_Clock (Port_Cfg));
+         if Port_Cfg.Display = HDMI then
+            SoC.HDMI.On (Port_Cfg.Port);
+         else
+            SoC.DP.Pre_Training (Port_Cfg, Pipe);
+            Panel.On (Port_Cfg.Panel, Wait => True);
+            SoC.DP.Train (Port_Cfg, Success);
+         end if;
+      end if;
+
+      PLLs.PHY_Post_Encoder_Enable;
+
+      if not Success then
+         CHV_Off (Pipe, Port_Cfg);
+      end if;
+   end CHV_Pre_On;
+
    -- The DPLL of the pipe has to be enabled after the PHY preparation
    -- and before the encoder setup, so we enable everything up to the
    -- port here, before the pipe is enabled, like i915 does.
@@ -96,9 +170,21 @@ is
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
       Success :=
-         Pipe in DPIO.DPIO_Pipe and
-         ((Port_Cfg.Port in SoC.SoC_Port and Port_Cfg.Display in DP | HDMI) or
-          (Port_Cfg.Port = VGA and Port_Cfg.Display = VGA));
+        (Port_Cfg.Port in SoC.SoC_Port and then
+         Port_Cfg.Port <= SoC.Last_Port and then
+         Port_Cfg.Display in DP | HDMI) or
+        (Config.Has_VLV_DAC and
+         Port_Cfg.Port = VGA and Port_Cfg.Display = VGA);
+
+      if Success then
+         if Config.Has_Fixed_Port_D_Pipe then
+            Success := (Port_Cfg.Port = DIGI_D) = (Pipe = Tertiary);
+         else
+            Success := Pipe in DPIO.DPIO_Pipe;
+         end if;
+         pragma Debug (not Success, Debug.Put_Line
+           ("ERROR: Port can't be driven by this pipe."));
+      end if;
 
       if Success and Port_Cfg.Panel in Valid_Panels then
          Success := Pipe = Panel_Pipe (Port_Cfg.Panel);
@@ -109,7 +195,9 @@ is
       if Success and Port_Cfg.Display = VGA then
          -- The DAC doesn't use the PHY and is enabled after the pipe.
          PLLs.On (Pipe, Port_Cfg, Success);
-      elsif Success then
+      elsif Success and Config.Has_CHV_PHY then
+         CHV_Pre_On (Pipe, Port_Cfg, Success);
+      elsif Success and Port_Cfg.Port in DPIO.DPIO_Port then
          if Port_Cfg.Display = HDMI then
             SoC.HDMI.Prepare (Port_Cfg, Pipe);
          end if;
@@ -130,9 +218,10 @@ is
                end if;
             end if;
          end if;
+      else
+         Success := False;
       end if;
    end Pre_On;
-
    procedure Post_On
      (Pipe     : in     Pipe_Index;
       Port_Cfg : in     Port_Config;
@@ -174,15 +263,19 @@ is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      if Port_Cfg.Port in SoC.SoC_Port then
-         if Port_Cfg.Display = HDMI then
-            DPIO.Reset_Lanes (Port_Cfg.Port);
-         elsif Port_Cfg.Display = DP then
-            SoC.DP.Off (Port_Cfg.Port);
+      if Config.Has_CHV_PHY and Port_Cfg.Port in SoC.SoC_Port then
+         CHV_Off (Pipe, Port_Cfg);
+      else
+         if Port_Cfg.Port in DPIO.DPIO_Port then
+            if Port_Cfg.Display = HDMI then
+               DPIO.Reset_Lanes (Port_Cfg.Port);
+            elsif Port_Cfg.Display = DP then
+               SoC.DP.Off (Port_Cfg.Port);
+            end if;
          end if;
-      end if;
 
-      PLLs.Off (Pipe);
+         PLLs.Off (Pipe);
+      end if;
    end Post_Off;
 
    ----------------------------------------------------------------------------

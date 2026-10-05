@@ -24,26 +24,32 @@ is
 
    PORTB_HOTPLUG_INT_EN             : constant := 1 * 2 ** 29;
    PORTC_HOTPLUG_INT_EN             : constant := 1 * 2 ** 28;
+   PORTD_HOTPLUG_INT_EN             : constant := 1 * 2 ** 27;
    CRT_HOTPLUG_INT_EN               : constant := 1 * 2 **  9;
    CRT_HOTPLUG_VOLTAGE_COMPARE_50   : constant := 1 * 2 **  5;
 
-   subtype VLV_Port is GPU_Port range DIGI_B .. DIGI_C;
+   -- Port D is only available on Braswell.
+   subtype VLV_Port is GPU_Port range DIGI_B .. DIGI_D;
 
    PORT_HOTPLUG_INT_EN : constant array (VLV_Port) of Word32 :=
      (DIGI_B => PORTB_HOTPLUG_INT_EN,
-      DIGI_C => PORTC_HOTPLUG_INT_EN);
+      DIGI_C => PORTC_HOTPLUG_INT_EN,
+      DIGI_D => PORTD_HOTPLUG_INT_EN);
 
    type Port_Regs is array (VLV_Port) of Registers.Registers_Index;
    HDMI_CTL : constant Port_Regs :=
      (DIGI_B => Registers.GMCH_HDMIB,
-      DIGI_C => Registers.GMCH_HDMIC);
+      DIGI_C => Registers.GMCH_HDMIC,
+      DIGI_D => Registers.CHV_HDMID);
    DP_CTL : constant Port_Regs :=
      (DIGI_B => Registers.GMCH_DP_B,
-      DIGI_C => Registers.GMCH_DP_C);
+      DIGI_C => Registers.GMCH_DP_C,
+      DIGI_D => Registers.GMCH_DP_D);
 
    HOTPLUG_INT_STATUS : constant array (Active_Port_Type) of Word32 :=
      (DP1 | HDMI1 => 3 * 2 ** 17,
       DP2 | HDMI2 => 3 * 2 ** 19,
+      DP3 | HDMI3 => 3 * 2 ** 21,
       Analog      => 1 * 2 ** 11,
       others      => 0);
 
@@ -51,10 +57,14 @@ is
    is
       To_HDMI_Port : constant array (VLV_Port) of Port_Type :=
         (DIGI_B => HDMI1,
-         DIGI_C => HDMI2);
+         DIGI_C => HDMI2,
+         DIGI_D => HDMI3);
       To_DP_Port : constant array (VLV_Port) of Port_Type :=
         (DIGI_B => DP1,
-         DIGI_C => DP2);
+         DIGI_C => DP2,
+         DIGI_D => DP3);
+      Last_Port : constant VLV_Port :=
+        (if Config.Has_CHV_PHY then DIGI_D else DIGI_C);
 
       HDMI_Detected, DP_Detected, Is_Panel, DAC_Present : Boolean;
       Hotplug_Enable : Word32 := 0;
@@ -68,7 +78,7 @@ is
             CRT_HOTPLUG_INT_EN or CRT_HOTPLUG_VOLTAGE_COMPARE_50;
       end if;
 
-      for Port in VLV_Port loop
+      for Port in VLV_Port range VLV_Port'First .. Last_Port loop
          Registers.Is_Set_Mask
            (Register => HDMI_CTL (Port),
             Mask     => PORT_DETECTED,

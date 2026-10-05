@@ -16,6 +16,8 @@
 with HW.Time;
 with HW.GFX.GMA.Config;
 with HW.GFX.GMA.IOSF;
+with HW.GFX.GMA.PLLs;
+with HW.GFX.GMA.DPIO_CHV;
 with HW.GFX.GMA.Registers;
 
 with HW.Debug;
@@ -33,23 +35,42 @@ package body HW.GFX.GMA.Power_And_Clocks is
    CCU_DISPLAY_CLOCKS            : constant := 16#0114#;
    CCU_DISPLAY_SSC_AND_BEND      : constant := 16#0003_0003#;
 
+   PUNIT_REG_DSPSSPM             : constant := 16#36#;
+   DP_SSC_PIPE_A_MASK            : constant := 3 * 2 ** 0;
+   DP_SSS_PIPE_A_MASK            : constant := 3 * 2 ** 16;
+   DSPFREQGUAR_MASK_CHV          : constant := 16#1f# * 2 ** 8;
+   DSPFREQSTAT_MASK_CHV          : constant := 16#1f# * 2 ** 24;
+
+   CHV_CDClk                     : constant := 320_000_000;
+
    PUNIT_REG_PWRGT_CTRL          : constant := 16#60#;
    PUNIT_REG_PWRGT_STATUS        : constant := 16#61#;
 
    type Power_Well is
      (DISP2D, DPIO_TX_B_01, DPIO_TX_B_23, DPIO_TX_C_01, DPIO_TX_C_23,
-      DPIO_CMN_BC);
+      DPIO_CMN_BC, DPIO_CMN_D);
    Power_Well_Index : constant array (Power_Well) of Natural :=
      (DISP2D       => 3,
       DPIO_CMN_BC  => 5,
       DPIO_TX_B_01 => 6,
       DPIO_TX_B_23 => 7,
       DPIO_TX_C_01 => 8,
-      DPIO_TX_C_23 => 9);
+      DPIO_TX_C_23 => 9,
+      DPIO_CMN_D   => 12);
+
+   PHY_Power_Well : constant array (DPIO_CHV.PHY_Type) of Power_Well :=
+     (DPIO_CHV.PHY0 => DPIO_CMN_BC,
+      DPIO_CHV.PHY1 => DPIO_CMN_D);
 
    DPLL_REF_CLK_ENABLE_VLV       : constant := 1 * 2 ** 29;
    DPLL_VGA_MODE_DIS             : constant := 1 * 2 ** 28;
    DPLL_INTEGRATED_CRI_CLK_VLV   : constant := 1 * 2 ** 14;
+
+   type DPLL_Array is array (Pipe_Index) of Registers.Registers_Index;
+   DPLL : constant DPLL_Array :=
+     (Primary   => Registers.GMCH_DPLL_A,
+      Secondary => Registers.GMCH_DPLL_B,
+      Tertiary  => Registers.CHV_DPLL_C);
 
    VRHUNIT_CLOCK_GATE_DISABLE    : constant := 1 * 2 ** 28;
    DPOUNIT_CLOCK_GATE_DISABLE    : constant := 1 * 2 ** 11;
@@ -60,35 +81,75 @@ package body HW.GFX.GMA.Power_And_Clocks is
 
    ----------------------------------------------------------------------------
 
-   procedure Power_Well_On (Well : Power_Well)
+   -- The Punit power controls take two bits per well, 0 means powered
+   -- and 3 means power gated. The status reads back the same way.
+   procedure Set_Punit_Power
+     (Name        : String;
+      Ctrl_Reg    : Word32;
+      Ctrl_Mask   : Word32;
+      Status_Reg  : Word32;
+      Status_Mask : Word32;
+      Enable      : Boolean)
    is
-      Mask : constant Word32 :=
-         Shift_Left (Word32'(3), 2 * Power_Well_Index (Well));
+      Wanted : constant Word32 := (if Enable then 0 else Status_Mask);
       Status, Ctrl : Word32;
       Timeout : Time.T;
       Timed_Out : Boolean := False;
    begin
-      IOSF.Read (IOSF.PUnit, PUNIT_REG_PWRGT_STATUS, Status);
-      if (Status and Mask) = 0 then
+      IOSF.Read (IOSF.PUnit, Status_Reg, Status);
+      if (Status and Status_Mask) = Wanted then
          return;
       end if;
 
-      pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity & ": " &
-                                    Power_Well'Image (Well)));
+      pragma Debug (Debug.Put_Line
+        (GNAT.Source_Info.Enclosing_Entity & ": " & Name &
+         (if Enable then " on" else " off")));
 
-      IOSF.Read (IOSF.PUnit, PUNIT_REG_PWRGT_CTRL, Ctrl);
-      IOSF.Write (IOSF.PUnit, PUNIT_REG_PWRGT_CTRL, Ctrl and not Mask);
+      IOSF.Read (IOSF.PUnit, Ctrl_Reg, Ctrl);
+      Ctrl := Ctrl and not Ctrl_Mask;
+      if not Enable then
+         Ctrl := Ctrl or Ctrl_Mask;
+      end if;
+      IOSF.Write (IOSF.PUnit, Ctrl_Reg, Ctrl);
 
       Timeout := Time.MS_From_Now (100);
       loop
-         IOSF.Read (IOSF.PUnit, PUNIT_REG_PWRGT_STATUS, Status);
-         exit when (Status and Mask) = 0 or Timed_Out;
+         IOSF.Read (IOSF.PUnit, Status_Reg, Status);
+         exit when (Status and Status_Mask) = Wanted or Timed_Out;
          Timed_Out := Time.Timed_Out (Timeout);
       end loop;
 
-      pragma Debug ((Status and Mask) /= 0, Debug.Put_Line
-        (GNAT.Source_Info.Enclosing_Entity & ": Timed out!"));
+      pragma Debug
+        ((Status and Status_Mask) /= Wanted,
+         Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity & ": Timed out!"));
+   end Set_Punit_Power;
+
+   function Power_Well_Mask (Well : Power_Well) return Word32 is
+     (Shift_Left (Word32'(3), 2 * Power_Well_Index (Well)));
+
+   procedure Set_Power_Well (Well : Power_Well; Enable : Boolean) is
+   begin
+      Set_Punit_Power
+        (Name        => Power_Well'Image (Well),
+         Ctrl_Reg    => PUNIT_REG_PWRGT_CTRL,
+         Ctrl_Mask   => Power_Well_Mask (Well),
+         Status_Reg  => PUNIT_REG_PWRGT_STATUS,
+         Status_Mask => Power_Well_Mask (Well),
+         Enable      => Enable);
+   end Set_Power_Well;
+
+   procedure Power_Well_On (Well : Power_Well) is
+   begin
+      Set_Power_Well (Well, True);
    end Power_Well_On;
+
+   function Power_Well_Is_On (Well : Power_Well) return Boolean
+   is
+      Status : Word32;
+   begin
+      IOSF.Read (IOSF.PUnit, PUNIT_REG_PWRGT_STATUS, Status);
+      return (Status and Power_Well_Mask (Well)) = 0;
+   end Power_Well_Is_On;
 
    ----------------------------------------------------------------------------
 
@@ -119,7 +180,63 @@ package body HW.GFX.GMA.Power_And_Clocks is
       Clock := Div_Round_Closest (2 * VCO, Pos64 (Divider + 1));
    end Get_CCK_Clock;
 
+   -- The CDClk is requested from the Punit, and a warm reset keeps the
+   -- last request, e.g. the 200MHz i915 asks for once all pipes are off.
+   -- Pipes underrun at that rate, and as we don't switch the CDClk per
+   -- mode, we always run at the 320MHz maximum.
+   procedure Set_CHV_CDClk (VCO : Int64; CDClk : Pos64)
+   is
+      Divider : constant Word32 :=
+         Word32 (Div_Round_Closest (2 * VCO, CDClk) - 1) and 16#1f#;
+      DSPSSPM : Word32;
+      Timeout : Time.T;
+      Timed_Out : Boolean := False;
+   begin
+      pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
+
+      IOSF.Read (IOSF.PUnit, PUNIT_REG_DSPSSPM, DSPSSPM);
+      DSPSSPM := (DSPSSPM and not DSPFREQGUAR_MASK_CHV) or
+                 Shift_Left (Divider, 8);
+      IOSF.Write (IOSF.PUnit, PUNIT_REG_DSPSSPM, DSPSSPM);
+
+      Timeout := Time.MS_From_Now (50);
+      loop
+         IOSF.Read (IOSF.PUnit, PUNIT_REG_DSPSSPM, DSPSSPM);
+         exit when (DSPSSPM and DSPFREQSTAT_MASK_CHV) =
+                   Shift_Left (Divider, 24) or Timed_Out;
+         Timed_Out := Time.Timed_Out (Timeout);
+      end loop;
+
+      pragma Debug
+        ((DSPSSPM and DSPFREQSTAT_MASK_CHV) /= Shift_Left (Divider, 24),
+         Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity & ": Timed out!"));
+   end Set_CHV_CDClk;
+
    ----------------------------------------------------------------------------
+
+   -- The lanes of the Braswell PHYs are powered through DISPLAY_PHY_CONTROL,
+   -- which is handled by PLLs. Here, we only power the common lanes.
+   procedure Initialize_CHV_PHYs
+   is
+      type PHY_Bool_Array is array (DPIO_CHV.PHY_Type) of Boolean;
+      PHY_On : PHY_Bool_Array;
+   begin
+      for PHY in DPIO_CHV.PHY_Type loop
+         PHY_On (PHY) := Power_Well_Is_On (PHY_Power_Well (PHY));
+      end loop;
+      PLLs.PHY_Control_Init
+        (PHY0_On => PHY_On (DPIO_CHV.PHY0),
+         PHY1_On => PHY_On (DPIO_CHV.PHY1));
+
+      for PHY in DPIO_CHV.PHY_Type loop
+         if not PHY_On (PHY) then
+            Time.U_Delay (1);
+            Power_Well_On (PHY_Power_Well (PHY));
+            DPIO_CHV.Common_Lane_Init (PHY);
+            PLLs.PHY_Common_Lane_Reset_Deassert (PHY);
+         end if;
+      end loop;
+   end Initialize_CHV_PHYs;
 
    procedure Initialize
    is
@@ -129,17 +246,31 @@ package body HW.GFX.GMA.Power_And_Clocks is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      Power_Well_On (DISP2D);
+      if Config.Has_CHV_PHY then
+         -- There is no DISP2D well, the display is powered with pipe A.
+         Set_Punit_Power
+           (Name        => "PIPE_A",
+            Ctrl_Reg    => PUNIT_REG_DSPSSPM,
+            Ctrl_Mask   => DP_SSC_PIPE_A_MASK,
+            Status_Reg  => PUNIT_REG_DSPSSPM,
+            Status_Mask => DP_SSS_PIPE_A_MASK,
+            Enable      => True);
+      else
+         Power_Well_On (DISP2D);
+      end if;
 
       -- Enable the CRI clock source and the reference clocks
-      Registers.Set_Mask
-        (Register => Registers.GMCH_DPLL_A,
-         Mask     => DPLL_REF_CLK_ENABLE_VLV or DPLL_VGA_MODE_DIS);
-      Registers.Set_Mask
-        (Register => Registers.GMCH_DPLL_B,
-         Mask     => DPLL_REF_CLK_ENABLE_VLV or DPLL_VGA_MODE_DIS or
-                     DPLL_INTEGRATED_CRI_CLK_VLV);
+      for Pipe in Primary .. Config.Max_Pipe loop
+         Registers.Set_Mask
+           (Register => DPLL (Pipe),
+            Mask     => DPLL_REF_CLK_ENABLE_VLV or DPLL_VGA_MODE_DIS or
+                        (if Pipe = Primary
+                         then 0 else DPLL_INTEGRATED_CRI_CLK_VLV));
+      end loop;
 
+      if Config.Has_CHV_PHY then
+         Set_CHV_CDClk (VCO, CHV_CDClk);
+      end if;
       Get_CCK_Clock (CCK_DISPLAY_CLOCK_CONTROL, VCO, CDClk);
       Get_CCK_Clock (CCK_DISPLAY_REF_CLOCK_CONTROL, VCO, Raw_Clock);
       if CDClk in Config.CDClk_Range then
@@ -171,6 +302,11 @@ package body HW.GFX.GMA.Power_And_Clocks is
         (Register => Registers.VLV_GMBUSFREQ,
          Value    => Word32 (Div_Round_Up (Config.CDClk, 1_000_000)));
 
+      if Config.Has_CHV_PHY then
+         Initialize_CHV_PHYs;
+         return;
+      end if;
+
       -- Request spread spectrum and bend clocks for the display PLLs.
       IOSF.Unset_And_Set_Mask
         (Unit        => IOSF.CCU,
@@ -194,7 +330,14 @@ package body HW.GFX.GMA.Power_And_Clocks is
    procedure Post_All_Off is
    begin
       -- Assert common lane reset, all PLLs are disabled by now.
-      Registers.Unset_Mask (Registers.VLV_DPIO_CTL, DPIO_CMNRST);
+      if Config.Has_CHV_PHY then
+         for PHY in DPIO_CHV.PHY_Type loop
+            PLLs.PHY_Common_Lane_Reset_Assert (PHY);
+            Set_Power_Well (PHY_Power_Well (PHY), False);
+         end loop;
+      else
+         Registers.Unset_Mask (Registers.VLV_DPIO_CTL, DPIO_CMNRST);
+      end if;
    end Post_All_Off;
 
    procedure Limit_Dotclocks
@@ -202,7 +345,26 @@ package body HW.GFX.GMA.Power_And_Clocks is
       CDClk_Switch   :    out Boolean)
    is
    begin
-      Config_Helpers.Limit_Dotclocks (Configs, Config.CDClk * 90 / 100);
+      if Config.Has_CHV_PHY then
+         Config_Helpers.Limit_Dotclocks (Configs, Config.CDClk * 95 / 100);
+
+         -- The DPLL can't generate TMDS clocks between 216MHz and 240MHz.
+         for Pipe in Pipe_Index loop
+            declare
+               Port : constant Port_Type := Configs (Pipe).Port;
+               Dotclock : Frequency_Type renames Configs (Pipe).Mode.Dotclock;
+            begin
+               if Port in Active_Port_Type and then
+                  Config_Helpers.To_Display_Type (Port) = HDMI and then
+                  Dotclock > 216_000_000 and then Dotclock < 240_000_000
+               then
+                  Dotclock := 216_000_000;
+               end if;
+            end;
+         end loop;
+      else
+         Config_Helpers.Limit_Dotclocks (Configs, Config.CDClk * 90 / 100);
+      end if;
       CDClk_Switch := False;
    end Limit_Dotclocks;
 

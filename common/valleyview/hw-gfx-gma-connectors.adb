@@ -54,15 +54,18 @@ is
                Config_Helpers.To_Display_Type (Port) = DP and then
                Config_Helpers.To_GPU_Port (Pipe, Port) in SoC.SoC_Port
             then
-               PLLs.On_RBR (Pipe, Was_On, Success);
-               if Success then
-                  SoC.DP.Kick_Power_Sequencer
-                    (Port  => Config_Helpers.To_GPU_Port (Pipe, Port),
-                     Pipe  => Pipe);
-                  if not Was_On then
-                     PLLs.Off (Pipe);
+               declare
+                  GPU_Port : constant SoC.SoC_Port :=
+                     Config_Helpers.To_GPU_Port (Pipe, Port);
+               begin
+                  PLLs.On_RBR (Pipe, GPU_Port, Was_On, Success);
+                  if Success then
+                     SoC.DP.Kick_Power_Sequencer (GPU_Port, Pipe);
                   end if;
-               end if;
+                  if not Was_On then
+                     PLLs.Off_RBR (Pipe, GPU_Port);
+                  end if;
+               end;
             end if;
          end;
       end loop;
@@ -94,7 +97,7 @@ is
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
       Success :=
-         Pipe in PLLs.DPLL_Pipe and
+         Pipe in DPIO.DPIO_Pipe and
          ((Port_Cfg.Port in SoC.SoC_Port and Port_Cfg.Display in DP | HDMI) or
           (Port_Cfg.Port = VGA and Port_Cfg.Display = VGA));
 
@@ -180,9 +183,7 @@ is
          end if;
       end if;
 
-      if Pipe in PLLs.DPLL_Pipe then
-         PLLs.Off (Pipe);
-      end if;
+      PLLs.Off (Pipe);
    end Post_Off;
 
    ----------------------------------------------------------------------------

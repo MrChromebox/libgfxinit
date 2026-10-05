@@ -1118,6 +1118,13 @@ is
          end if;
          Debug.Put ("         BPC                => ");
          Debug.Put_Int64 (Configs (Pipe).Mode.BPC);
+         Debug.Put_Line (",");
+         Debug.Put ("         HDMI_Sink          => ");
+         if Configs (Pipe).Mode.HDMI_Sink then
+            Debug.Put ("True");
+         else
+            Debug.Put ("False");
+         end if;
          if Pipe /= Pipe_Index'Last then
             Debug.Put_Line (")),");
          else

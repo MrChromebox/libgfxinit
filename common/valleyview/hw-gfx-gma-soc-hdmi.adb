@@ -13,7 +13,9 @@
 -- GNU General Public License for more details.
 --
 
+with HW.GFX.GMA.Config;
 with HW.GFX.GMA.DPIO;
+with HW.GFX.GMA.DPIO_CHV;
 with HW.GFX.GMA.Registers;
 
 with HW.Debug;
@@ -33,7 +35,8 @@ is
    type HDMI_Array is array (SoC_Port) of Registers.Registers_Index;
    HDMI_CTL : constant HDMI_Array :=
      (DIGI_B => Registers.GMCH_HDMIB,
-      DIGI_C => Registers.GMCH_HDMIC);
+      DIGI_C => Registers.GMCH_HDMIC,
+      DIGI_D => Registers.CHV_HDMID);
 
    ----------------------------------------------------------------------------
 
@@ -51,7 +54,7 @@ is
 
       Registers.Write
         (Register => HDMI_CTL (Port_Cfg.Port),
-         Value    => PORT_PIPE_SELECT (Pipe) or
+         Value    => HDMI_PIPE_SELECT (Pipe) or
                      HDMI_SDVO_ENCODING_HDMI or
                      HDMI_COLOR_FORMAT_8BPC or
                      (if Port_Cfg.Mode.HDMI_Sink then
@@ -65,12 +68,23 @@ is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      DPIO.Set_HDMI_Signal_Levels (Port);
+      if Config.Has_CHV_PHY then
+         DPIO_CHV.Set_HDMI_Signal_Levels (Port);
+      elsif Port in DPIO.DPIO_Port then
+         DPIO.Set_HDMI_Signal_Levels (Port);
+      end if;
 
       Registers.Set_Mask (HDMI_CTL (Port), HDMI_ENABLE);
       Registers.Posting_Read (HDMI_CTL (Port));
 
-      DPIO.Wait_Port_Ready (Port, Success);
+      if Config.Has_CHV_PHY then
+         DPIO_CHV.Wait_Port_Ready
+           (Port, Unused_Lanes => 0, Success => Success);
+      elsif Port in DPIO.DPIO_Port then
+         DPIO.Wait_Port_Ready (Port, Success);
+      else
+         Success := False;
+      end if;
    end On;
 
    ----------------------------------------------------------------------------
@@ -89,11 +103,18 @@ is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      for Port in SoC_Port loop
+      for Port in SoC_Port range SoC_Port'First .. Last_Port loop
          Off (Port);
          -- Same flicker WA as the per-pipe Post_Off path (i915
-         -- vlv_hdmi_post_disable / vlv_phy_reset_lanes).
-         DPIO.Reset_Lanes (Port);
+         -- vlv_hdmi_post_disable / chv_data_lane_soft_reset).
+         if Config.Has_CHV_PHY then
+            DPIO_CHV.Data_Lane_Soft_Reset
+              (Port        => Port,
+               Lane_Count  => DP_Lane_Count_4,
+               Reset       => True);
+         elsif Port in DPIO.DPIO_Port then
+            DPIO.Reset_Lanes (Port);
+         end if;
       end loop;
    end All_Off;
 

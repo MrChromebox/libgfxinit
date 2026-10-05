@@ -43,6 +43,11 @@ is
    is
       ADPA : Word32;
    begin
+      if not Config.Has_VLV_DAC then
+         Present := False;
+         return;
+      end if;
+
       Registers.Read (Registers.GMCH_ADPA, ADPA);
       Present := (ADPA and ADPA_DAC_ENABLE) /= 0;
       if not Present then
@@ -82,6 +87,10 @@ is
    procedure Off
    is
    begin
+      if not Config.Has_VLV_DAC then
+         return;
+      end if;
+
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
       Registers.Unset_And_Set_Mask

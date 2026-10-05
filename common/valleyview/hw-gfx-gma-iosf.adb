@@ -27,18 +27,19 @@ package body HW.GFX.GMA.IOSF is
 
    type Unit_Array is array (Unit_Type) of Word32;
    Port_ID : constant Unit_Array :=
-     (CCK   => 16#14#,
-      CCU   => 16#a9#,
-      PUnit => 16#04#,
-      DPIO  => 16#12#);
+     (CCK    => 16#14#,
+      CCU    => 16#a9#,
+      PUnit  => 16#04#,
+      DPIO   => 16#12#,
+      DPIO_2 => 16#1a#);
 
    -- DPIO uses MMIO style accesses, the others private register ones
    Read_Opcode : constant Unit_Array :=
-     (DPIO   => SB_MRD_NP,
-      others => SB_CRRDDA_NP);
+     (DPIO | DPIO_2 => SB_MRD_NP,
+      others        => SB_CRRDDA_NP);
    Write_Opcode : constant Unit_Array :=
-     (DPIO   => SB_MWR_NP,
-      others => SB_CRWRDA_NP);
+     (DPIO | DPIO_2 => SB_MWR_NP,
+      others        => SB_CRWRDA_NP);
 
    IOSF_OPCODE_SHIFT       : constant := 16;
    IOSF_PORT_SHIFT         : constant := 8;

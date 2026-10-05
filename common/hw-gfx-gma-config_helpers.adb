@@ -189,11 +189,12 @@ is
    -- (Port_Config) that applies to the selected hardware generation
    -- (in GMA.Config).
    procedure Fill_Port_Config
-     (Port_Cfg :    out Port_Config;
-      Pipe     : in     Pipe_Index;
-      Port     : in     Port_Type;
-      Mode     : in     Mode_Type;
-      Success  :    out Boolean)
+     (Port_Cfg  :    out Port_Config;
+      Pipe      : in     Pipe_Index;
+      Port      : in     Port_Type;
+      Mode      : in     Mode_Type;
+      Sink_Caps : in     HDMI_Caps;
+      Success   :    out Boolean)
    is
    begin
       Success :=
@@ -204,16 +205,18 @@ is
 
       if Success then
          Port_Cfg := Port_Config'
-           (Port     => To_GPU_Port (Pipe, Port),
-            PCH_Port => To_PCH_Port (Port),
-            Display  => To_Display_Type (Port),
-            Panel    => To_Panel (Port),
-            Mode     => Mode,
-            Is_FDI   => Config.Is_FDI_Port (Port),
-            Is_eDP   => To_Display_Type (Port) = DP and
-                        To_Panel (Port) /= No_Panel,
-            FDI      => Default_DP,
-            DP       => Default_DP);
+           (Port      => To_GPU_Port (Pipe, Port),
+            PCH_Port  => To_PCH_Port (Port),
+            Display   => To_Display_Type (Port),
+            Panel     => To_Panel (Port),
+            Mode      => Mode,
+            Sink_Caps => (if To_Display_Type (Port) = HDMI
+                          then Sink_Caps else No_HDMI_Caps),
+            Is_FDI    => Config.Is_FDI_Port (Port),
+            Is_eDP    => To_Display_Type (Port) = DP and
+                         To_Panel (Port) /= No_Panel,
+            FDI       => Default_DP,
+            DP        => Default_DP);
 
          if Port_Cfg.Mode.BPC = Auto_BPC then
             Port_Cfg.Mode.BPC := Connector_Info.Default_BPC (Port_Cfg);
@@ -242,15 +245,16 @@ is
          end if;
       else
          Port_Cfg := Port_Config'
-           (Port     => GPU_Port'First,
-            PCH_Port => PCH_Port'First,
-            Display  => Display_Type'First,
-            Panel    => No_Panel,
-            Mode     => Invalid_Mode,
-            Is_FDI   => False,
-            Is_eDP   => False,
-            FDI      => Default_DP,
-            DP       => Default_DP);
+           (Port      => GPU_Port'First,
+            PCH_Port  => PCH_Port'First,
+            Display   => Display_Type'First,
+            Panel     => No_Panel,
+            Mode      => Invalid_Mode,
+            Sink_Caps => No_HDMI_Caps,
+            Is_FDI    => False,
+            Is_eDP    => False,
+            FDI       => Default_DP,
+            DP        => Default_DP);
       end if;
    end Fill_Port_Config;
 

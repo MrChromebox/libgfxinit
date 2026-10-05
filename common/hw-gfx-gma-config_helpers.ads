@@ -29,11 +29,12 @@ is
    function To_Panel (Port : Active_Port_Type) return Panel_Control;
 
    procedure Fill_Port_Config
-     (Port_Cfg :    out Port_Config;
-      Pipe     : in     Pipe_Index;
-      Port     : in     Port_Type;
-      Mode     : in     Mode_Type;
-      Success  :    out Boolean)
+     (Port_Cfg  :    out Port_Config;
+      Pipe      : in     Pipe_Index;
+      Port      : in     Port_Type;
+      Mode      : in     Mode_Type;
+      Sink_Caps : in     HDMI_Caps;
+      Success   :    out Boolean)
    with
       Post =>
         (if Success then

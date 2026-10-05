@@ -125,6 +125,33 @@ is
       end loop;
    end Read_EDID;
 
+   procedure Read_HDMI_Caps
+     (Sink_Caps :    out HDMI_Caps;
+      Port      : in     Active_Port_Type)
+   is
+      Raw_Ext : EDID.Raw_EDID_Data;
+      Raw_Ext_Length : GFX.I2C.Transfer_Length := Raw_Ext'Length;
+      Success : Boolean;
+   begin
+      pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
+
+      I2C.I2C_Read
+        (Port     => Config_Helpers.To_PCH_Port (Port),
+         Address  => 16#50#,
+         Length   => Raw_Ext_Length,
+         Data     => Raw_Ext,
+         Success  => Success,
+         Offset   => 16#80#);  -- first extension block
+      Success := Success and Raw_Ext_Length = Raw_Ext'Length;
+
+      if Success then
+         pragma Debug (Debug.Put_Buffer ("EDID", Raw_Ext, Raw_Ext_Length));
+         Sink_Caps := EDID.HDMI_Capabilities (Raw_Ext);
+      else
+         Sink_Caps := No_HDMI_Caps;
+      end if;
+   end Read_HDMI_Caps;
+
    procedure Probe_Port
      (Pipe_Cfg : in out Pipe_Config;
       Port     : in     Active_Port_Type;
@@ -147,6 +174,14 @@ is
       then
          Pipe_Cfg.Port := Port;
          Pipe_Cfg.Mode := EDID.Preferred_Mode (Raw_EDID);
+
+         if Config_Helpers.To_Display_Type (Port) = HDMI and
+            EDID.Has_Extension (Raw_EDID)
+         then
+            Read_HDMI_Caps (Pipe_Cfg.Sink_Caps, Port);
+         else
+            Pipe_Cfg.Sink_Caps := No_HDMI_Caps;
+         end if;
 
          pragma Warnings (GNATprove, Off, "unused assignment to ""Raw_EDID""",
             Reason => "We just want to check if it's readable.");
@@ -192,7 +227,8 @@ is
                      Alignment   => Center,
                      Scaling     => Fit,
                      Cursor      => Default_Cursor,
-                     Framebuffer => Default_FB));
+                     Framebuffer => Default_FB,
+                     Sink_Caps   => No_HDMI_Caps));
 
       -- Turn panel on early to probe other ports during the power on delay.
       for Idx in Port_List_Range loop

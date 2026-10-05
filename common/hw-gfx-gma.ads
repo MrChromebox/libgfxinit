@@ -142,6 +142,7 @@ is
       Scaling     : GMA.Scaling;
       Cursor      : Cursor_Type;
       Mode        : Mode_Type;
+      Sink_Caps   : HDMI_Caps;
    end record;
    type Pipe_Index is (Primary, Secondary, Tertiary);
    type Pipe_Configs is array (Pipe_Index) of Pipe_Config;
@@ -347,15 +348,16 @@ private
 
    type Port_Config is
       record
-         Port     : GPU_Port;
-         PCH_Port : GMA.PCH_Port;
-         Display  : Display_Type;
-         Panel    : Panel_Control;
-         Mode     : Mode_Type;
-         Is_FDI   : Boolean;
-         Is_eDP   : Boolean;
-         FDI      : DP_Link;
-         DP       : DP_Link;
+         Port      : GPU_Port;
+         PCH_Port  : GMA.PCH_Port;
+         Display   : Display_Type;
+         Panel     : Panel_Control;
+         Mode      : Mode_Type;
+         Sink_Caps : HDMI_Caps;
+         Is_FDI    : Boolean;
+         Is_eDP    : Boolean;
+         FDI       : DP_Link;
+         DP        : DP_Link;
       end record;
 
    type FDI_Training_Type is (Simple_Training, Full_Training, Auto_Training);

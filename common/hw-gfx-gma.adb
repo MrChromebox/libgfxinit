@@ -153,7 +153,8 @@ is
         ("Trying to enable port " & Port_Names (Pipe_Cfg.Port)));
 
       Config_Helpers.Fill_Port_Config
-        (Port_Cfg, Pipe, Pipe_Cfg.Port, Pipe_Cfg.Mode, Success);
+        (Port_Cfg, Pipe, Pipe_Cfg.Port, Pipe_Cfg.Mode, Pipe_Cfg.Sink_Caps,
+         Success);
 
       if Success then
          Power_And_Clocks.Power_Up (Pipe_Cfg.Port, Success);
@@ -241,7 +242,8 @@ is
       Success  : Boolean;
    begin
       Config_Helpers.Fill_Port_Config
-        (Port_Cfg, Pipe, Pipe_Cfg.Port, Pipe_Cfg.Mode, Success);
+        (Port_Cfg, Pipe, Pipe_Cfg.Port, Pipe_Cfg.Mode, Pipe_Cfg.Sink_Caps,
+         Success);
       if Success then
          pragma Debug (Debug.New_Line);
          pragma Debug (Debug.Put_Line
@@ -289,6 +291,8 @@ is
             Cur_Config.Port /= New_Config.Port
             or else
             Cur_Config.Mode /= New_Config.Mode
+            or else
+            Cur_Config.Sink_Caps /= New_Config.Sink_Caps
             or else
             (Config.Use_PDW_For_EDP_Scaling and then
              (Cur_Config.Port = eDP and
@@ -540,7 +544,8 @@ is
             Alignment   => Alignment'First,
             Scaling     => Scaling'First,
             Cursor      => Default_Cursor,
-            Mode        => HW.GFX.Invalid_Mode));
+            Mode        => HW.GFX.Invalid_Mode,
+            Sink_Caps   => No_HDMI_Caps));
       Config.Variable := Config.Initial_Settings;
       Registers.Set_Register_Base (Config.Default_MMIO_Base, Default_GTT_Base);
       PLLs.Initialize;
@@ -657,14 +662,16 @@ is
             Alignment   => Center,
             Scaling     => Fit,
             Cursor      => Default_Cursor,
-            Mode        => HW.GFX.Invalid_Mode),
+            Mode        => HW.GFX.Invalid_Mode,
+            Sink_Caps   => No_HDMI_Caps),
          others =>
            (Port        => Disabled,
             Framebuffer => HW.GFX.Default_FB,
             Alignment   => Alignment'First,
             Scaling     => Scaling'First,
             Cursor      => Default_Cursor,
-            Mode        => HW.GFX.Invalid_Mode));
+            Mode        => HW.GFX.Invalid_Mode,
+            Sink_Caps   => No_HDMI_Caps));
    begin
       Power_And_Clocks.Power_Up (Cur_Configs, Fake_Config);
    end Power_Up_VGA;
@@ -1045,6 +1052,12 @@ is
          Debug.Put ("     (Port => ");
          Debug.Put (Port_Names (Configs (Pipe).Port));
          Debug.Put_Line (",");
+         Debug.Put ("      Sink_Caps => (HDMI_Sink => ");
+         if Configs (Pipe).Sink_Caps.HDMI_Sink then
+            Debug.Put_Line ("True),");
+         else
+            Debug.Put_Line ("False),");
+         end if;
          Debug.Put_Line ("      Framebuffer =>");
          Debug.Put ("        (Width     => ");
          Debug.Put_Int32 (Configs (Pipe).Framebuffer.Width);

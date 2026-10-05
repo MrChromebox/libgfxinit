@@ -12,17 +12,30 @@
 -- GNU General Public License for more details.
 --
 
-with HW.GFX.GMA.DPIO;
+with HW.GFX.GMA.Config;
 
 private package HW.GFX.GMA.SoC is
 
-   subtype SoC_Port is DPIO.DPIO_Port;
+   -- Port D is only available on Braswell.
+   subtype SoC_Port is GPU_Port range DIGI_B .. DIGI_D;
 
+   function Last_Port return SoC_Port is
+     (if Config.Has_CHV_PHY then DIGI_D else DIGI_C);
+
+   -- Valleyview selects pipe A or B with a single bit in all port
+   -- registers, Braswell uses two bit fields in the DP and HDMI ports.
    PORT_PIPE_SELECT_MASK   : constant := 1 * 2 ** 30;
-   type PORT_PIPE_SELECT_Array is array (Pipe_Index) of Word32;
-   PORT_PIPE_SELECT        : constant PORT_PIPE_SELECT_Array :=
-     (Primary   => 0 * 2 ** 30,
-      Secondary => 1 * 2 ** 30,
-      Tertiary  => 0);
+   function PORT_PIPE_SELECT (Pipe : Pipe_Index) return Word32 is
+     (if Pipe = Secondary then 1 * 2 ** 30 else 0);
+
+   function DP_PIPE_SELECT (Pipe : Pipe_Index) return Word32 is
+     (if Config.Has_CHV_PHY
+      then Shift_Left (Word32 (Pipe_Index'Pos (Pipe)), 16)
+      else PORT_PIPE_SELECT (Pipe));
+
+   function HDMI_PIPE_SELECT (Pipe : Pipe_Index) return Word32 is
+     (if Config.Has_CHV_PHY
+      then Shift_Left (Word32 (Pipe_Index'Pos (Pipe)), 24)
+      else PORT_PIPE_SELECT (Pipe));
 
 end HW.GFX.GMA.SoC;

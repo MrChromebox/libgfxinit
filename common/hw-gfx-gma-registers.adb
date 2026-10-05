@@ -340,14 +340,30 @@ is
 
       Display_Offset : constant := Config.Display_Base_Offset / Register_Width;
 
+      -- Cherryview moved the pipe C registers that Ivy Bridge had in
+      -- these ranges up by 0x2000 and the transcoder C ones by 0x1000.
+      subtype CHV_Pipe_C_Range is Natural
+         range 16#7_2000# / Register_Width .. 16#7_2fff# / Register_Width;
+      subtype CHV_Trans_C_Range is Natural
+         range 16#6_2000# / Register_Width .. 16#6_2fff# / Register_Width;
+
       function Index (Reg : Registers_Index) return Registers_Range
       with
          SPARK_Mode => Off
       is
          Idx : constant Natural := Reg'Enum_Rep;
+         CHV_Offset : constant Natural :=
+           (if not Config.CPU_Braswell then
+               0
+            elsif Idx in CHV_Pipe_C_Range then
+               16#2000# / Register_Width
+            elsif Idx in CHV_Trans_C_Range and Reg /= G4X_AUD_VID_DID then
+               16#1000# / Register_Width
+            else
+               0);
       begin
          return Registers_Range
-           (Idx +
+           (Idx + CHV_Offset +
             (if Idx in Display_Range_1 or Idx in Display_Range_2
              then Display_Offset else 0));
       end Index;

@@ -56,11 +56,13 @@ is
       GMCH_DPLL_A_MD,
       GMCH_DPLL_B_MD,
       VLV_RAWCLK_FREQ,
+      CHV_DPLL_C,
       GMCH_FPA0,
       GMCH_FPA1,
       GMCH_FPB0,
       GMCH_FPB1,
       VLV_DSPCLK_GATE_D,
+      CHV_DPIO_PHY_STATUS,
       VLV_MI_ARB,
       VLV_GMBUSFREQ,
       MBCTL,
@@ -194,6 +196,7 @@ is
       PIPEA_LINK_M1,
       PIPEA_LINK_N1,
       FDI_TX_CTL_A,
+      CHV_DISPLAY_PHY_STATUS,
       PIPEA_DDI_FUNC_CTL,
       PIPEA_MSA_MISC,
       TGL_DP_TP_CTL_A,
@@ -217,6 +220,7 @@ is
       PORT_HOTPLUG_STAT,
       GMCH_SDVOB,
       GMCH_SDVOC,
+      CHV_HDMID,
       GMCH_LVDS,
       GMCH_PP_STATUS,
       GMCH_PP_CONTROL,
@@ -239,6 +243,8 @@ is
       TGL_DP_TP_STATUS_B,
       SRD_CTL_B,
       SRD_STATUS_B,
+      CHV_BLEND_B,
+      CHV_CANVAS_B,
       HTOTAL_C,
       HBLANK_C,
       HSYNC_C,
@@ -584,6 +590,9 @@ is
       CURBCNTR,
       CURBBASE,
       CURBPOS,
+      CHV_CURCCNTR,
+      CHV_CURCBASE,
+      CHV_CURCPOS,
       CUR_WM_A_0,
       CUR_WM_A_1,
       CUR_WM_A_2,
@@ -632,6 +641,7 @@ is
       PLANE_WM_2_A_7,
       PLANE_BUF_CFG_2_A,
       VLV_CBR1,
+      VLV_CBR4,
       PIPE_SCANLINE_B,
       PIPEBCONF,
       PIPEB_ARB_CTL,
@@ -2375,6 +2385,18 @@ is
       VLV_BLC_PWM_CTL2_B       => 16#06_1350# / Register_Width,
       VLV_BLC_PWM_CTL_B        => 16#06_1354# / Register_Width,
       VLV_CBR1                 => 16#07_0400# / Register_Width,
+      VLV_CBR4                 => 16#07_0450# / Register_Width,
+
+      -- Cherryview display registers, subject to Display_Base_Offset
+      CHV_DPLL_C               => 16#00_6030# / Register_Width,
+      CHV_DPIO_PHY_STATUS      => 16#00_6240# / Register_Width,
+      CHV_DISPLAY_PHY_STATUS   => 16#06_0104# / Register_Width,
+      CHV_HDMID                => 16#06_116c# / Register_Width,
+      CHV_BLEND_B              => 16#06_1a00# / Register_Width,
+      CHV_CANVAS_B             => 16#06_1a04# / Register_Width,
+      CHV_CURCCNTR             => 16#07_00e0# / Register_Width,
+      CHV_CURCBASE             => 16#07_00e4# / Register_Width,
+      CHV_CURCPOS              => 16#07_00e8# / Register_Width,
 
       -- Valleyview IOSF sideband, at absolute addresses as they
       -- would collide with GT registers in the offset range rule
@@ -2402,6 +2424,7 @@ is
    GMCH_ADPA            : constant Registers_Index := FDI_TX_CTL_B;
    GMCH_HDMIB           : constant Registers_Index := GMCH_SDVOB;
    GMCH_HDMIC           : constant Registers_Index := GMCH_SDVOC;
+   CHV_DISPLAY_PHY_CONTROL : constant Registers_Index := FDI_TX_CTL_A;
    CURACNTR             : constant Registers_Index := CUR_CTL_A;
    CURABASE             : constant Registers_Index := CUR_BASE_A;
    CURAPOS              : constant Registers_Index := CUR_POS_A;

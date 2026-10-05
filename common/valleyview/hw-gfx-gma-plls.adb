@@ -145,7 +145,7 @@ is
          Success := Port_Cfg.DP.Bandwidth in DP_Rate;
          Dividers := DP_Dividers
            (if Success then Port_Cfg.DP.Bandwidth else DP_Rate'First);
-      elsif Port_Cfg.Display = HDMI then
+      elsif Port_Cfg.Display in HDMI | VGA then
          declare
             Target_kHz : constant Pos64 :=
                Div_Round_Closest (Port_Cfg.Mode.Dotclock, 1_000);

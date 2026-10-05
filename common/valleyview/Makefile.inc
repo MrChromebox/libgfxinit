@@ -12,4 +12,6 @@ gfxinit-y += hw-gfx-gma-soc-dp.adb
 gfxinit-y += hw-gfx-gma-soc-dp.ads
 gfxinit-y += hw-gfx-gma-soc-hdmi.adb
 gfxinit-y += hw-gfx-gma-soc-hdmi.ads
+gfxinit-y += hw-gfx-gma-soc-vga.adb
+gfxinit-y += hw-gfx-gma-soc-vga.ads
 gfxinit-y += hw-gfx-gma-soc.ads

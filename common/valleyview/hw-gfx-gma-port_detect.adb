@@ -15,6 +15,7 @@
 with HW.GFX.GMA.Config;
 with HW.GFX.GMA.Config_Helpers;
 with HW.GFX.GMA.Registers;
+with HW.GFX.GMA.SoC.VGA;
 
 package body HW.GFX.GMA.Port_Detect
 is
@@ -23,6 +24,8 @@ is
 
    PORTB_HOTPLUG_INT_EN             : constant := 1 * 2 ** 29;
    PORTC_HOTPLUG_INT_EN             : constant := 1 * 2 ** 28;
+   CRT_HOTPLUG_INT_EN               : constant := 1 * 2 **  9;
+   CRT_HOTPLUG_VOLTAGE_COMPARE_50   : constant := 1 * 2 **  5;
 
    subtype VLV_Port is GPU_Port range DIGI_B .. DIGI_C;
 
@@ -41,6 +44,7 @@ is
    HOTPLUG_INT_STATUS : constant array (Active_Port_Type) of Word32 :=
      (DP1 | HDMI1 => 3 * 2 ** 17,
       DP2 | HDMI2 => 3 * 2 ** 19,
+      Analog      => 1 * 2 ** 11,
       others      => 0);
 
    procedure Initialize
@@ -52,10 +56,17 @@ is
         (DIGI_B => DP1,
          DIGI_C => DP2);
 
-      HDMI_Detected, DP_Detected, Is_Panel : Boolean;
+      HDMI_Detected, DP_Detected, Is_Panel, DAC_Present : Boolean;
       Hotplug_Enable : Word32 := 0;
    begin
       Config.Valid_Port := (others => False);
+
+      SoC.VGA.Detect (DAC_Present);
+      Config.Valid_Port (Analog) := DAC_Present;
+      if DAC_Present then
+         Hotplug_Enable :=
+            CRT_HOTPLUG_INT_EN or CRT_HOTPLUG_VOLTAGE_COMPARE_50;
+      end if;
 
       for Port in VLV_Port loop
          Registers.Is_Set_Mask

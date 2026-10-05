@@ -19,6 +19,7 @@ with HW.GFX.GMA.PLLs;
 with HW.GFX.GMA.DPIO;
 with HW.GFX.GMA.SoC.DP;
 with HW.GFX.GMA.SoC.HDMI;
+with HW.GFX.GMA.SoC.VGA;
 
 with HW.Debug;
 with GNAT.Source_Info;
@@ -93,8 +94,8 @@ is
 
       Success :=
          Pipe in PLLs.DPLL_Pipe and
-         Port_Cfg.Port in SoC.SoC_Port and
-         Port_Cfg.Display in DP | HDMI;
+         ((Port_Cfg.Port in SoC.SoC_Port and Port_Cfg.Display in DP | HDMI) or
+          (Port_Cfg.Port = VGA and Port_Cfg.Display = VGA));
 
       if Success and Port_Cfg.Panel in Valid_Panels then
          Success := Pipe = Panel_Pipe (Port_Cfg.Panel);
@@ -102,25 +103,28 @@ is
            ("ERROR: Panel can't be driven by this pipe."));
       end if;
 
-      if Success then
+      if Success and Port_Cfg.Display = VGA then
+         -- The DAC doesn't use the PHY and is enabled after the pipe.
+         PLLs.On (Pipe, Port_Cfg, Success);
+      elsif Success then
          if Port_Cfg.Display = HDMI then
             SoC.HDMI.Prepare (Port_Cfg, Pipe);
          end if;
          DPIO.Pre_PLL_Enable (Port_Cfg.Port);
          PLLs.On (Pipe, Port_Cfg, Success);
-      end if;
 
-      if Success then
-         DPIO.Pre_Encoder_Enable (Pipe, Port_Cfg.Port);
-         if Port_Cfg.Display = HDMI then
-            SoC.HDMI.On (Port_Cfg.Port);
-         else
-            SoC.DP.Pre_Training (Port_Cfg, Pipe);
-            Panel.On (Port_Cfg.Panel, Wait => True);
-            SoC.DP.Train (Port_Cfg, Success);
-            if not Success then
-               SoC.DP.Off (Port_Cfg.Port);
-               PLLs.Off (Pipe);
+         if Success then
+            DPIO.Pre_Encoder_Enable (Pipe, Port_Cfg.Port);
+            if Port_Cfg.Display = HDMI then
+               SoC.HDMI.On (Port_Cfg.Port);
+            else
+               SoC.DP.Pre_Training (Port_Cfg, Pipe);
+               Panel.On (Port_Cfg.Panel, Wait => True);
+               SoC.DP.Train (Port_Cfg, Success);
+               if not Success then
+                  SoC.DP.Off (Port_Cfg.Port);
+                  PLLs.Off (Pipe);
+               end if;
             end if;
          end if;
       end if;
@@ -134,6 +138,10 @@ is
    is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
+
+      if Port_Cfg.Display = VGA then
+         SoC.VGA.On (Pipe, Port_Cfg.Mode);
+      end if;
 
       Panel.On (Port_Cfg.Panel, Wait => False);
       Panel.Backlight_On (Port_Cfg.Panel);
@@ -153,6 +161,8 @@ is
 
       if Port_Cfg.Port in SoC.SoC_Port and Port_Cfg.Display = HDMI then
          SoC.HDMI.Off (Port_Cfg.Port);
+      elsif Port_Cfg.Display = VGA then
+         SoC.VGA.Off;
       end if;
    end Pre_Off;
 
@@ -194,6 +204,7 @@ is
 
       SoC.DP.All_Off;
       SoC.HDMI.All_Off;
+      SoC.VGA.Off;
    end Post_All_Off;
 
 end HW.GFX.GMA.Connectors;

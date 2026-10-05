@@ -21,6 +21,7 @@ private package HW.GFX.GMA.I2C is
       Address  : in     HW.GFX.I2C.Transfer_Address;
       Length   : in out HW.GFX.I2C.Transfer_Length;
       Data     :    out HW.GFX.I2C.Transfer_Data;
-      Success  :    out Boolean);
+      Success  :    out Boolean;
+      Offset   : in     Word8 := 16#00#);
 
 end HW.GFX.GMA.I2C;

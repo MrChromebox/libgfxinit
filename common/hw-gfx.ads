@@ -116,6 +116,11 @@ package HW.GFX is
    type Display_Type is (None, LVDS, DP, HDMI, VGA);
    subtype Internal_Type is Display_Type range None .. DP;
 
+   type HDMI_Caps is record
+      HDMI_Sink : Boolean;
+   end record;
+   No_HDMI_Caps : constant HDMI_Caps := HDMI_Caps'(HDMI_Sink => False);
+
    type Mode_Type is
    record
       Dotclock             : Frequency_Type;

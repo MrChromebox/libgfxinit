@@ -173,4 +173,55 @@ package body HW.GFX.EDID is
       return Mode;
    end Preferred_Mode;
 
+   ----------------------------------------------------------------------------
+
+   CEA_EXT_TAG                         : constant :=     16#02#;
+   CEA_EXT_REVISION                    : constant :=          1;
+   CEA_EXT_DTD_OFFSET                  : constant :=          2;
+   CEA_EXT_DATA_BLOCKS                 : constant :=          4;
+
+   CEA_DB_TAG_SHIFT                    : constant :=          5;
+   CEA_DB_LENGTH_MASK                  : constant :=     16#1f#;
+   CEA_DB_TAG_VENDOR_SPECIFIC          : constant :=          3;
+
+   function HDMI_Capabilities (Raw_Ext : Raw_EDID_Data) return HDMI_Caps
+   is
+      Caps     : HDMI_Caps := No_HDMI_Caps;
+      Data_End : Raw_EDID_Index;
+      Pos      : Raw_EDID_Index := CEA_EXT_DATA_BLOCKS;
+      Tag      : Byte;
+      Length   : Natural;
+   begin
+      if Raw_Ext (0) /= CEA_EXT_TAG or else
+         Raw_Ext (CEA_EXT_REVISION) < 3 or else
+         not Checksum_Valid (Raw_Ext)
+      then
+         return No_HDMI_Caps;
+      end if;
+
+      -- Data blocks end where the detailed timing descriptors start.
+      Data_End := Natural'Min
+        (Natural (Raw_Ext (CEA_EXT_DTD_OFFSET)), Raw_EDID_Index'Last);
+
+      while Pos < Data_End loop
+         pragma Loop_Invariant (Data_End <= Raw_EDID_Index'Last);
+         Tag    := Shift_Right (Raw_Ext (Pos), CEA_DB_TAG_SHIFT);
+         Length := Natural (Raw_Ext (Pos) and CEA_DB_LENGTH_MASK);
+         exit when Pos + Length >= Data_End;
+
+         if (Tag = CEA_DB_TAG_VENDOR_SPECIFIC and Length >= 3) and then
+            -- HDMI IEEE OUI 00-0c-03, LSB first
+            (Raw_Ext (Pos + 1) = 16#03# and
+             Raw_Ext (Pos + 2) = 16#0c# and
+             Raw_Ext (Pos + 3) = 16#00#)
+         then
+            Caps.HDMI_Sink := True;
+         end if;
+
+         Pos := Pos + Length + 1;
+      end loop;
+
+      return Caps;
+   end HDMI_Capabilities;
+
 end HW.GFX.EDID;

@@ -66,4 +66,15 @@ is
    with
       Pre => Valid (Raw_EDID) and then Has_Preferred_Mode (Raw_EDID);
 
+   EXTENSIONS : constant := 126;
+
+   function Has_Extension (Raw_EDID : Raw_EDID_Data) return Boolean is
+     (Raw_EDID (EXTENSIONS) /= 0)
+   with
+      Pre => Valid (Raw_EDID);
+
+   -- Parse the HDMI capabilities from a CEA-861 extension block.
+   -- Returns No_HDMI_Caps if the block isn't a valid CEA-861 extension.
+   function HDMI_Capabilities (Raw_Ext : Raw_EDID_Data) return HDMI_Caps;
+
 end HW.GFX.EDID;

@@ -115,6 +115,11 @@ package body HW.GFX.GMA.I2C is
       return Shift_Left (Word32 (Address), GMBUS1_SLAVE_ADDRESS_SHIFT);
    end GMBUS1_SLAVE_ADDRESS;
 
+   function GMBUS1_8BIT_SLAVE_INDEX (Index : Word8) return Word32 is
+   begin
+      return Shift_Left (Word32 (Index), GMBUS1_8BIT_SLAVE_INDEX_SHIFT);
+   end GMBUS1_8BIT_SLAVE_INDEX;
+
    function GMBUS0_PIN_PAIR_SELECT (Port : PCH_Port) return Word32 is
    begin
       return
@@ -232,7 +237,8 @@ package body HW.GFX.GMA.I2C is
       Address  : in     HW.GFX.I2C.Transfer_Address;
       Length   : in out HW.GFX.I2C.Transfer_Length;
       Data     :    out HW.GFX.I2C.Transfer_Data;
-      Success  :    out Boolean)
+      Success  :    out Boolean;
+      Offset   : in     Word8 := 16#00#)
    is
       GMBUS2 : Word32 := 0;
       GMBUS3 : Word32;
@@ -252,6 +258,7 @@ package body HW.GFX.GMA.I2C is
                         GMBUS1_BUS_CYCLE_INDEX or
                         GMBUS1_BUS_CYCLE_WAIT or
                         GMBUS1_TOTAL_BYTE_COUNT (Length) or
+                        GMBUS1_8BIT_SLAVE_INDEX (Offset) or
                         GMBUS1_SLAVE_ADDRESS (Address) or
                         GMBUS1_DIRECTION_READ);
 

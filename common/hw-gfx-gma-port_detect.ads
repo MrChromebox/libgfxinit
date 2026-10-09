@@ -22,4 +22,9 @@ private package HW.GFX.GMA.Port_Detect is
 
    procedure Clear_Hotplug_Detect (Port : Active_Port_Type);
 
+   -- Reports the live HPD state, where supported; False otherwise.
+   procedure Hotplug_Live
+     (Port : in     Active_Port_Type;
+      Live :    out Boolean);
+
 end HW.GFX.GMA.Port_Detect;

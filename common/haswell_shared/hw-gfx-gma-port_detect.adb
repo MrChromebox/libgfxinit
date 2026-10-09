@@ -61,6 +61,11 @@ is
       DIGI_D => 1 * 2 ** 17,
       DIGI_A => 1 * 2 ** 25,
       others => 0);
+   SDEISR_PORT_HOTPLUG : constant Digital_Port_Value :=
+     (DIGI_B => 1 * 2 ** 21,
+      DIGI_C => 1 * 2 ** 22,
+      DIGI_D => 1 * 2 ** 23,
+      others => 0);
 
    procedure Initialize
    is
@@ -200,5 +205,20 @@ is
       Port_Detect.Hotplug_Detect (Port, Ignored_HPD);
       pragma Warnings (GNATprove, On, "unused assignment to ""Ignored_HPD""");
    end Clear_Hotplug_Detect;
+
+   procedure Hotplug_Live (Port : in Active_Port_Type; Live : out Boolean)
+   is
+      GPU_Port : constant GMA.GPU_Port :=
+         Config_Helpers.To_GPU_Port (Primary, Port);
+   begin
+      if not Config.Gen_Broxton and then GPU_Port in DIGI_B .. DIGI_D then
+         Registers.Is_Set_Mask
+           (Register => Registers.SDEISR,
+            Mask     => SDEISR_PORT_HOTPLUG (GPU_Port),
+            Result   => Live);
+      else
+         Live := False;
+      end if;
+   end Hotplug_Live;
 
 end HW.GFX.GMA.Port_Detect;

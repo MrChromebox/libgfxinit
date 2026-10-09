@@ -26,10 +26,13 @@ is
       USBC1, USBC2, USBC3, USBC4,
       Analog, LVDS, eDP);
 
+   -- With Wait_For_Sink, failed reads on DP ports are retried for a
+   -- bounded time while the port's HPD is asserted.
    procedure Read_EDID
-     (Raw_EDID :    out EDID.Raw_EDID_Data;
-      Port     : in     Active_Port_Type;
-      Success  :    out Boolean)
+     (Raw_EDID      :    out EDID.Raw_EDID_Data;
+      Port          : in     Active_Port_Type;
+      Success       :    out Boolean;
+      Wait_For_Sink : in     Boolean := False)
    with
       Relaxed_Initialization => Raw_EDID,
       Post => (if Success then Raw_EDID'Initialized and EDID.Valid (Raw_EDID));

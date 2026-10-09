@@ -23,6 +23,7 @@ with HW.GFX.GMA.Connectors;
 with HW.GFX.GMA.Port_Detect;
 with HW.GFX.GMA.Power_And_Clocks;
 
+with HW.Time;
 with HW.Debug;
 with GNAT.Source_Info;
 
@@ -62,12 +63,21 @@ is
       (Port = Analog or
       Config_Helpers.To_PCH_Port (Port) = Config.Analog_I2C_Port));
 
+   -- Sinks behind DP adaptors (e.g. LSPCONs) may assert HPD before
+   -- they answer EDID reads over AUX.
+   EDID_HPD_Timeout_MS     : constant := 200;
+   EDID_HPD_Retry_Delay_MS : constant := 10;
+
    procedure Read_EDID
-     (Raw_EDID :    out EDID.Raw_EDID_Data;
-      Port     : in     Active_Port_Type;
-      Success  :    out Boolean)
+     (Raw_EDID      :    out EDID.Raw_EDID_Data;
+      Port          : in     Active_Port_Type;
+      Success       :    out Boolean;
+      Wait_For_Sink : in     Boolean := False)
    is
       Raw_EDID_Length : GFX.I2C.Transfer_Length := Raw_EDID'Length;
+      Timeout : Time.T;
+      Timed_Out : Boolean;
+      HPD_Live : Boolean;
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
@@ -100,12 +110,25 @@ is
                         when DP3       => DP_D,
                         when others    => GMA.DP_Port'First));
             begin
-               DP_Aux_Ch.I2C_Read
-                 (Port     => DP_Port,
-                  Address  => 16#50#,
-                  Length   => Raw_EDID_Length,
-                  Data     => Raw_EDID,
-                  Success  => Success);
+               Timeout := Time.MS_From_Now (EDID_HPD_Timeout_MS);
+               loop
+                  Raw_EDID_Length := Raw_EDID'Length;
+                  DP_Aux_Ch.I2C_Read
+                    (Port     => DP_Port,
+                     Address  => 16#50#,
+                     Length   => Raw_EDID_Length,
+                     Data     => Raw_EDID,
+                     Success  => Success);
+                  exit when Success or not Wait_For_Sink;
+
+                  Port_Detect.Hotplug_Live (Port, HPD_Live);
+                  Timed_Out := Time.Timed_Out (Timeout);
+                  exit when not HPD_Live or Timed_Out;
+
+                  pragma Debug (Debug.Put_Line
+                    ("HPD asserted but no EDID yet, retrying."));
+                  Time.M_Delay (EDID_HPD_Retry_Delay_MS);
+               end loop;
             end;
          else
             I2C.I2C_Read
@@ -164,7 +187,7 @@ is
 
       if Success then
          Panel.Wait_On (Config_Helpers.To_Panel (Port), VDD_Only => True);
-         Read_EDID (Raw_EDID, Port, Success);
+         Read_EDID (Raw_EDID, Port, Success, Wait_For_Sink => True);
       end if;
 
       if Success and then

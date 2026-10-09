@@ -137,6 +137,9 @@ is
 
    ----------------------------------------------------------------------------
 
+   Link_Training_Rounds          : constant := 2;
+   Link_Training_Retry_Delay_MS  : constant := 250;
+
    procedure Enable_Output
      (Pipe     : in     Pipe_Index;
       Pipe_Cfg : in     Pipe_Config;
@@ -160,71 +163,90 @@ is
          Power_And_Clocks.Power_Up (Pipe_Cfg.Port, Success);
       end if;
 
-      if Success then
-         Connector_Info.Preferred_Link_Setting (Port_Cfg, Success);
-      end if;
-
-      if Success then
-         Connectors.Prepare (Pipe_Cfg.Port, Port_Cfg, Success);
-      end if;
-
-      -- loop over all possible DP-lane configurations
-      -- (non-DP ports use a single fake configuration)
-      while Success loop
+      -- A freshly powered external DP sink (e.g. a USB-C adapter that
+      -- just got VBUS) may not lock yet. Give it a few more rounds.
+      for Round in 1 .. Link_Training_Rounds loop
          pragma Loop_Invariant
            (Pipe_Cfg.Port in Active_Port_Type and
             Port_Cfg.Mode = Port_Cfg.Mode'Loop_Entry);
 
-         PLLs.Alloc
-           (Port_Cfg => Port_Cfg,
-            PLL      => Allocated_PLLs (Pipe),
-            Success  => Success);
-
-         if Success then
-            -- try each DP-lane configuration twice
-            for Try in 1 .. 2 loop
-               pragma Loop_Invariant
-                 (Pipe_Cfg.Port in Active_Port_Type);
-
-               -- Clear pending hot-plug events before every try
-               Port_Detect.Clear_Hotplug_Detect (Pipe_Cfg.Port);
-
-               Connectors.Pre_On
-                 (Pipe        => Pipe,
-                  Port_Cfg    => Port_Cfg,
-                  PLL_Hint    => PLLs.Register_Value (Allocated_PLLs (Pipe)),
-                  Success     => Success);
-
-               if Success then
-                  Display_Controller.On
-                    (Pipe        => Pipe,
-                     Pipe_Cfg    => Pipe_Cfg,
-                     Port_Cfg    => Port_Cfg);
-
-                  Connectors.Post_On
-                    (Pipe     => Pipe,
-                     Port_Cfg => Port_Cfg,
-                     PLL_Hint => PLLs.Register_Value (Allocated_PLLs (Pipe)),
-                     Success  => Success);
-
-                  if not Success then
-                     Display_Controller.Off (Pipe);
-                     Connectors.Post_Off (Pipe, Port_Cfg);
-                  end if;
-               end if;
-
-               exit when Success;
-            end loop;
-            exit when Success;   -- connection established => stop loop
-
-            -- connection failed
-            PLLs.Free (Allocated_PLLs (Pipe));
+         if Round > 1 then
+            exit when Port_Cfg.Display /= DP or Pipe_Cfg.Port = eDP;
+            Time.M_Delay (Link_Training_Retry_Delay_MS);
+            pragma Debug (Debug.Put_Line ("Retrying link training"));
+            Success := True;
          end if;
 
-         Connector_Info.Next_Link_Setting (Port_Cfg, Success);
          exit when not Success;
 
-         Connectors.Prepare (Pipe_Cfg.Port, Port_Cfg, Success);
+         Connector_Info.Preferred_Link_Setting (Port_Cfg, Success);
+
+         if Success then
+            Connectors.Prepare (Pipe_Cfg.Port, Port_Cfg, Success);
+         end if;
+
+         -- loop over all possible DP-lane configurations
+         -- (non-DP ports use a single fake configuration)
+         while Success loop
+            pragma Loop_Invariant
+              (Pipe_Cfg.Port in Active_Port_Type and
+               Port_Cfg.Mode = Port_Cfg.Mode'Loop_Entry);
+
+            PLLs.Alloc
+              (Port_Cfg => Port_Cfg,
+               PLL      => Allocated_PLLs (Pipe),
+               Success  => Success);
+
+            if Success then
+               -- try each DP-lane configuration twice
+               for Try in 1 .. 2 loop
+                  pragma Loop_Invariant
+                    (Pipe_Cfg.Port in Active_Port_Type);
+
+                  -- Clear pending hot-plug events before every try
+                  Port_Detect.Clear_Hotplug_Detect (Pipe_Cfg.Port);
+
+                  Connectors.Pre_On
+                    (Pipe        => Pipe,
+                     Port_Cfg    => Port_Cfg,
+                     PLL_Hint    =>
+                        PLLs.Register_Value (Allocated_PLLs (Pipe)),
+                     Success     => Success);
+
+                  if Success then
+                     Display_Controller.On
+                       (Pipe        => Pipe,
+                        Pipe_Cfg    => Pipe_Cfg,
+                        Port_Cfg    => Port_Cfg);
+
+                     Connectors.Post_On
+                       (Pipe     => Pipe,
+                        Port_Cfg => Port_Cfg,
+                        PLL_Hint =>
+                           PLLs.Register_Value (Allocated_PLLs (Pipe)),
+                        Success  => Success);
+
+                     if not Success then
+                        Display_Controller.Off (Pipe);
+                        Connectors.Post_Off (Pipe, Port_Cfg);
+                     end if;
+                  end if;
+
+                  exit when Success;
+               end loop;
+               exit when Success;   -- connection established => stop loop
+
+               -- connection failed
+               PLLs.Free (Allocated_PLLs (Pipe));
+            end if;
+
+            Connector_Info.Next_Link_Setting (Port_Cfg, Success);
+            exit when not Success;
+
+            Connectors.Prepare (Pipe_Cfg.Port, Port_Cfg, Success);
+         end loop;
+
+         exit when Success;
       end loop;
 
       if Success then

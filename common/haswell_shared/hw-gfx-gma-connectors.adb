@@ -13,6 +13,7 @@
 --
 
 with HW.GFX.GMA.Config;
+with HW.GFX.GMA.DP_Aux_Backlight;
 with HW.GFX.GMA.Panel;
 with HW.GFX.GMA.Connectors.DDI;
 
@@ -74,6 +75,9 @@ package body HW.GFX.GMA.Connectors is
          DDI.Post_On (Port_Cfg);
 
          Panel.Backlight_On (Port_Cfg.Panel);
+         if Config.EDP_AUX_Backlight and Port_Cfg.Port = DIGI_A then
+            DP_Aux_Backlight.On (DP_A);
+         end if;
          Success := True;
       else
          Success := False; -- Should not happen
@@ -87,6 +91,9 @@ package body HW.GFX.GMA.Connectors is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
+      if Config.EDP_AUX_Backlight and Port_Cfg.Port = DIGI_A then
+         DP_Aux_Backlight.Off (DP_A);
+      end if;
       Panel.Backlight_Off (Port_Cfg.Panel);
       Panel.Off (Port_Cfg.Panel);
    end Pre_Off;

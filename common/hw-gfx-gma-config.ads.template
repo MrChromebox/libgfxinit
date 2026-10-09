@@ -86,6 +86,8 @@ private package HW.GFX.GMA.Config is
 
    EDP_Low_Voltage_Swing : constant Boolean := <<EDP_LOW_VSWING>>;
 
+   EDP_AUX_Backlight : constant Boolean := <<EDP_AUX_BACKLIGHT>>;
+
    DDI_HDMI_Buffer_Translation : constant Integer := -1;
 
    PCI_Dev : constant PCI.Address := <<PCI_DEV_ADDRESS>>;

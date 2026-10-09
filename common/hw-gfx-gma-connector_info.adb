@@ -19,6 +19,7 @@ with HW.GFX.GMA.Panel;
 with HW.GFX.GMA.DP_Dual_Mode;
 with HW.GFX.GMA.DP_Info;
 with HW.GFX.GMA.DP_Aux_Ch;
+with HW.Time;
 
 with HW.Debug;
 with GNAT.Source_Info;
@@ -88,14 +89,19 @@ package body HW.GFX.GMA.Connector_Info is
                DPCD_SINK_CONTROL    : constant := 16#00600#;
                DPCD_SINK_CONTROL_D0 : constant DP_Defs.Aux_Payload :=
                  (1 * 2 ** 0, others => 0);
-               Ignored : Boolean;
+               Woken : Boolean;
             begin
-               DP_Aux_Ch.Aux_Write
-                 (Port     => DP_Port,
-                  Address  => DPCD_SINK_CONTROL,
-                  Length   => 1,
-                  Data     => DPCD_SINK_CONTROL_D0,
-                  Success  => Ignored);
+               -- The sink may need up to 1ms to wake up
+               for Try in 1 .. 3 loop
+                  DP_Aux_Ch.Aux_Write
+                    (Port     => DP_Port,
+                     Address  => DPCD_SINK_CONTROL,
+                     Length   => 1,
+                     Data     => DPCD_SINK_CONTROL_D0,
+                     Success  => Woken);
+                  exit when Woken;
+                  Time.M_Delay (1);
+               end loop;
             end;
          end if;
       else

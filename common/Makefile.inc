@@ -1,3 +1,5 @@
+gfxinit-y += hw-gfx-dp_aux_backlight.adb
+gfxinit-y += hw-gfx-dp_aux_backlight.ads
 gfxinit-y += hw-gfx-dp_aux_ch.adb
 gfxinit-y += hw-gfx-dp_aux_ch.ads
 gfxinit-y += hw-gfx-dp_defs.ads
@@ -16,6 +18,7 @@ gfxinit-y += hw-gfx-gma-connector_info.ads
 gfxinit-y += hw-gfx-gma-connectors.ads
 gfxinit-y += hw-gfx-gma-display_probing.adb
 gfxinit-y += hw-gfx-gma-display_probing.ads
+gfxinit-y += hw-gfx-gma-dp_aux_backlight.ads
 gfxinit-y += hw-gfx-gma-dp_aux_ch.ads
 gfxinit-y += hw-gfx-gma-dp_aux_request.adb
 gfxinit-y += hw-gfx-gma-dp_aux_request.ads
@@ -64,6 +67,7 @@ CONFIG_GFX_GMA_PANEL_2_PORT	:= $(call strip_quotes,$(CONFIG_GFX_GMA_PANEL_2_PORT
 CONFIG_GFX_GMA_ANALOG_I2C_PORT	:= $(call strip_quotes,$(CONFIG_GFX_GMA_ANALOG_I2C_PORT))
 CONFIG_GFX_GMA_IGNORE_PRESENCE_STRAPS := $(if $(filter y,$(CONFIG_GFX_GMA_IGNORE_PRESENCE_STRAPS)),True,False)
 CONFIG_GFX_GMA_EDP_LOW_VOLTAGE_SWING := $(if $(filter y,$(CONFIG_GFX_GMA_EDP_LOW_VOLTAGE_SWING)),True,False)
+CONFIG_GFX_GMA_EDP_AUX_BACKLIGHT := $(if $(filter y,$(CONFIG_GFX_GMA_EDP_AUX_BACKLIGHT)),True,False)
 
 _GEN_TLA_SUBSTITUTIONS := i945 g45 ilk hsw skl tgl adl
 
@@ -96,6 +100,7 @@ GFX_GMA_COMMON_SUBSTITUTIONS := \
 	    -e's/<<DEFAULT_MMIO_BASE>>/$(CONFIG_GFX_GMA_DEFAULT_MMIO)/' \
 	    -e's/<<IGNORE_STRAPS>>/$(CONFIG_GFX_GMA_IGNORE_PRESENCE_STRAPS)/' \
 	    -e's/<<EDP_LOW_VSWING>>/$(CONFIG_GFX_GMA_EDP_LOW_VOLTAGE_SWING)/' \
+	    -e's/<<EDP_AUX_BACKLIGHT>>/$(CONFIG_GFX_GMA_EDP_AUX_BACKLIGHT)/' \
 
 ifeq ($(CONFIG_GFX_GMA_DYN_CPU),y)
 $(hw-gfx-gma-config-ads): $(dir)/hw-gfx-gma-config.ads.template $(cnf)

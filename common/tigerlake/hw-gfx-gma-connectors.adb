@@ -12,6 +12,7 @@
 -- GNU General Public License for more details.
 --
 
+with HW.GFX.GMA.DP_Aux_Backlight;
 with HW.GFX.GMA.DP_Aux_Ch;
 with HW.GFX.DP_Training;
 with HW.GFX.GMA.Combo_Phy;
@@ -381,12 +382,18 @@ package body HW.GFX.GMA.Connectors is
       end if;
 
       Panel.Backlight_On (Port_Cfg.Panel);
+      if Config.EDP_AUX_Backlight and then Port = DIGI_A then
+         DP_Aux_Backlight.On (DP_A);
+      end if;
    end Post_On;
 
    ---------------------------------------------------------------------
 
    procedure Pre_Off (Pipe : Pipe_Index; Port_Cfg : Port_Config) is
    begin
+      if Config.EDP_AUX_Backlight and then Port_Cfg.Port = DIGI_A then
+         DP_Aux_Backlight.Off (DP_A);
+      end if;
       Panel.Backlight_Off (Port_Cfg.Panel);
       Panel.Off (Port_Cfg.Panel);
    end Pre_Off;

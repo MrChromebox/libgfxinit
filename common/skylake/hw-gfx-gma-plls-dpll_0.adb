@@ -36,8 +36,14 @@ package body HW.GFX.GMA.PLLs.DPLL_0 is
       case DPLL_Ctrl1 and DPLL_CTRL1_DPLL0_LINK_RATE_MASK is
          when DPLL_CTRL1_DPLL0_LINK_RATE_2700MHZ =>
             Success := Link_Rate = DP_Bandwidth_5_4;
+         when DPLL_CTRL1_DPLL0_LINK_RATE_2160MHZ =>
+            Success := Link_Rate = DP_Bandwidth_4_32;
+         when DPLL_CTRL1_DPLL0_LINK_RATE_1620MHZ =>
+            Success := Link_Rate = DP_Bandwidth_3_24;
          when DPLL_CTRL1_DPLL0_LINK_RATE_1350MHZ =>
             Success := Link_Rate = DP_Bandwidth_2_7;
+         when DPLL_CTRL1_DPLL0_LINK_RATE_1080MHZ =>
+            Success := Link_Rate = DP_Bandwidth_2_16;
          when DPLL_CTRL1_DPLL0_LINK_RATE_810MHZ =>
             Success := Link_Rate = DP_Bandwidth_1_62;
          when others =>

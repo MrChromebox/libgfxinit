@@ -70,16 +70,43 @@ package HW.GFX is
       DP_Lane_Count_Integers'
         (DP_Lane_Count_1 => 1, DP_Lane_Count_2 => 2, DP_Lane_Count_4 => 4);
 
-   type DP_Bandwidth is (DP_Bandwidth_1_62, DP_Bandwidth_2_7, DP_Bandwidth_5_4);
+   -- Declaration order is increasing link rate. The representation of
+   -- 1.62/2.7/5.4 is the DPCD LINK_BW_SET code. 2.16/3.24/4.32 are eDP 1.4
+   -- rates and are selected with LINK_RATE_SET, not those codes.
+   type DP_Bandwidth is
+     (DP_Bandwidth_1_62,
+      DP_Bandwidth_2_16,
+      DP_Bandwidth_2_7,
+      DP_Bandwidth_3_24,
+      DP_Bandwidth_4_32,
+      DP_Bandwidth_5_4);
    for DP_Bandwidth use
-     (DP_Bandwidth_1_62 => 6, DP_Bandwidth_2_7 => 10, DP_Bandwidth_5_4 => 20);
+     (DP_Bandwidth_1_62 =>  6,
+      DP_Bandwidth_2_16 =>  8,
+      DP_Bandwidth_2_7  => 10,
+      DP_Bandwidth_3_24 => 12,
+      DP_Bandwidth_4_32 => 16,
+      DP_Bandwidth_5_4  => 20);
    for DP_Bandwidth'Size use 8;
    subtype DP_Symbol_Rate_Type is Pos64 range 1 .. 810_000_000;
    type DP_Symbol_Rate_Array is array (DP_Bandwidth) of DP_Symbol_Rate_Type;
    DP_Symbol_Rate : constant DP_Symbol_Rate_Array := DP_Symbol_Rate_Array'
      (DP_Bandwidth_1_62 => 162_000_000,
+      DP_Bandwidth_2_16 => 216_000_000,
       DP_Bandwidth_2_7  => 270_000_000,
+      DP_Bandwidth_3_24 => 324_000_000,
+      DP_Bandwidth_4_32 => 432_000_000,
       DP_Bandwidth_5_4  => 540_000_000);
+
+   -- Index into DPCD SUPPORTED_LINK_RATES (0x010), eight 16-bit entries.
+   type eDP_Rate_Index is new Natural range 0 .. 7;
+   type eDP_Rate is record
+      Valid     : Boolean;
+      Bandwidth : DP_Bandwidth;
+   end record;
+   type eDP_Rate_Table is array (eDP_Rate_Index) of eDP_Rate;
+   No_eDP_Rates : constant eDP_Rate_Table :=
+     (others => (Valid => False, Bandwidth => DP_Bandwidth'First));
 
    type DP_Caps is record
       Rev               : Word8;
@@ -89,6 +116,10 @@ package HW.GFX is
       Enhanced_Framing  : Boolean;
       No_Aux_Handshake  : Boolean;
       Aux_RD_Interval   : Word8;
+      -- eDP 1.4 sink advertised SUPPORTED_LINK_RATES. When set, training
+      -- writes LINK_RATE_SET instead of LINK_BW_SET.
+      Use_Rate_Select   : Boolean;
+      Rates             : eDP_Rate_Table;
    end record;
 
    type DP_Link is
@@ -98,6 +129,8 @@ package HW.GFX is
          Bandwidth               : DP_Bandwidth;
          Enhanced_Framing        : Boolean;
          Opportunistic_Training  : Boolean;
+         Use_Rate_Select         : Boolean;
+         Rate_Select             : eDP_Rate_Index;
       end record;
    Default_DP : constant DP_Link := DP_Link'
      (Receiver_Caps           => DP_Caps'
@@ -107,11 +140,15 @@ package HW.GFX is
          TPS3_Supported    => False,
          Enhanced_Framing  => False,
          No_Aux_Handshake  => False,
-         Aux_RD_Interval   => 16#00#),
+         Aux_RD_Interval   => 16#00#,
+         Use_Rate_Select   => False,
+         Rates             => No_eDP_Rates),
       Lane_Count              => DP_Lane_Count'First,
       Bandwidth               => DP_Bandwidth'First,
       Enhanced_Framing        => False,
-      Opportunistic_Training  => False);
+      Opportunistic_Training  => False,
+      Use_Rate_Select         => False,
+      Rate_Select             => 0);
 
    type Display_Type is (None, LVDS, DP, HDMI, VGA);
    subtype Internal_Type is Display_Type range None .. DP;

@@ -136,6 +136,25 @@ package body HW.GFX.GMA.PLLs.Combo_Phy is
          DCO_Fraction => 16#7000#,
          PDiv         => 4,
          KDiv         => 2,
+         QDiv         => 0),
+      -- Not selected. Present so the array covers the eDP 1.4 rates.
+      DP_Bandwidth_2_16 =>
+        (DCO_Integer  => 16#1a5#,
+         DCO_Fraction => 16#7000#,
+         PDiv         => 4,
+         KDiv         => 2,
+         QDiv         => 0),
+      DP_Bandwidth_3_24 =>
+        (DCO_Integer  => 16#1a5#,
+         DCO_Fraction => 16#7000#,
+         PDiv         => 2,
+         KDiv         => 2,
+         QDiv         => 0),
+      DP_Bandwidth_4_32 =>
+        (DCO_Integer  => 16#1a5#,
+         DCO_Fraction => 16#7000#,
+         PDiv         => 2,
+         KDiv         => 1,
          QDiv         => 0));
 
    PLL_Params_24MHz : constant DP_PLL_Params_Array := DP_PLL_Params_Array'
@@ -156,6 +175,24 @@ package body HW.GFX.GMA.PLLs.Combo_Phy is
          DCO_Fraction => 16#4000#,
          PDiv         => 4,
          KDiv         => 2,
+         QDiv         => 0),
+      DP_Bandwidth_2_16 =>
+        (DCO_Integer  => 16#151#,
+         DCO_Fraction => 16#4000#,
+         PDiv         => 4,
+         KDiv         => 2,
+         QDiv         => 0),
+      DP_Bandwidth_3_24 =>
+        (DCO_Integer  => 16#151#,
+         DCO_Fraction => 16#4000#,
+         PDiv         => 2,
+         KDiv         => 2,
+         QDiv         => 0),
+      DP_Bandwidth_4_32 =>
+        (DCO_Integer  => 16#151#,
+         DCO_Fraction => 16#4000#,
+         PDiv         => 2,
+         KDiv         => 1,
          QDiv         => 0));
 
    procedure Calc_DP_PLL_Dividers

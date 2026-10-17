@@ -78,6 +78,8 @@ is
    type DP_Dividers_Array is array (DP_Rate) of DPIO.PLL_Dividers;
    DP_Dividers : constant DP_Dividers_Array :=
      (DP_Bandwidth_1_62 => (N => 5, M1 => 3, M2 => 81, P1 => 3, P2 => 2),
+      -- 2.16 Gbps is inside 1.62 .. 2.7. Valleyview never selects it.
+      DP_Bandwidth_2_16 => (N => 5, M1 => 3, M2 => 81, P1 => 3, P2 => 2),
       DP_Bandwidth_2_7  => (N => 1, M1 => 2, M2 => 27, P1 => 2, P2 => 2));
 
    procedure Calculate_Dividers

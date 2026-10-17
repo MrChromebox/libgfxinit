@@ -81,22 +81,51 @@ package body HW.GFX.DP_Training is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      Data :=
-        (0      => Link_Rate_As_Word8 (Link.Bandwidth),
-         1      => Word8 (Lane_Count (Link)),
-         others => 0);  -- Don't care
+      if Link.Use_Rate_Select then
+         -- eDP 1.4 sinks ignore LINK_RATE_SET when LINK_BW_SET is written.
+         Data :=
+           (0      => Word8 (Lane_Count (Link)),
+            others => 0);
+         if Link.Enhanced_Framing then
+            Data (0) := Data (0) or 16#80#;
+         end if;
 
-      if Link.Enhanced_Framing then
-         Data (1) := Data (1) or 16#80#;
+         Aux_Ch.Aux_Write
+           (Port     => Port,
+            Address  => 16#00101#,     -- LANE_COUNT_SET
+            Length   => 1,
+            Data     => Data,
+            Success  => Success);
+         Success := Success or Link.Opportunistic_Training;
+
+         if Success then
+            Data (0) := Word8 (Natural (Link.Rate_Select));
+            Aux_Ch.Aux_Write
+              (Port     => Port,
+               Address  => 16#00115#,  -- LINK_RATE_SET
+               Length   => 1,
+               Data     => Data,
+               Success  => Success);
+            Success := Success or Link.Opportunistic_Training;
+         end if;
+      else
+         Data :=
+           (0      => Link_Rate_As_Word8 (Link.Bandwidth),
+            1      => Word8 (Lane_Count (Link)),
+            others => 0);  -- Don't care
+
+         if Link.Enhanced_Framing then
+            Data (1) := Data (1) or 16#80#;
+         end if;
+
+         Aux_Ch.Aux_Write
+           (Port     => Port,
+            Address  => 16#00100#,     -- LINK_BW_SET, LANE_COUNT_SET
+            Length   => 2,
+            Data     => Data,
+            Success  => Success);
+         Success := Success or Link.Opportunistic_Training;
       end if;
-
-      Aux_Ch.Aux_Write
-        (Port     => Port,
-         Address  => 16#00100#,     -- LINK_BW_SET, LANE_COUNT_SET
-         Length   => 2,
-         Data     => Data,
-         Success  => Success);
-      Success := Success or Link.Opportunistic_Training;
 
       if Success then
          Data (0) := 16#00#;  -- no downspread

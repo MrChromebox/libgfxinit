@@ -442,6 +442,8 @@ is
                      Clock.P2       := 1;
                      Clock.VCO      := 5_400_000_000;
                      Clock.Dotclock :=   540_000_000;
+                  when others =>
+                     Success := False;
                end case;
             when HDMI =>
                if Port_Cfg.Mode.Dotclock in HDMI_Clock_Range and

@@ -78,6 +78,8 @@ package body HW.GFX.GMA.Power_And_Clocks is
    DPLL_CTRL1_DPLL0_LINK_RATE_1080MHZ  : constant := 4 * 2 **  1;
    DPLL_CTRL1_DPLL0_LINK_RATE_2160MHZ  : constant := 5 * 2 **  1;
    DPLL_CTRL1_DPLL0_OVERRIDE           : constant := 1 * 2 **  0;
+   DPLL_CTRL1_DPLL0_SSC                : constant := 1 * 2 **  4;
+   DPLL_CTRL1_DPLL0_HDMI_MODE          : constant := 1 * 2 **  5;
 
    LCPLL1_CTL_PLL_ENABLE               : constant := 1 * 2 ** 31;
    LCPLL1_CTL_PLL_LOCK                 : constant := 1 * 2 ** 30;
@@ -92,6 +94,7 @@ package body HW.GFX.GMA.Power_And_Clocks is
    CDCLK_CTL_CD_FREQ_SELECT_337_5MHZ   : constant := 2 * 2 ** 26;
    CDCLK_CTL_CD_FREQ_SELECT_675MHZ     : constant := 3 * 2 ** 26;
    CDCLK_CTL_CD_FREQ_DECIMAL_MASK      : constant :=     16#7ff#;
+   CDCLK_CTL_DIVMUX_CD_OVERRIDE        : constant := 1 * 2 ** 19;
 
    SKL_PCODE_CDCLK_CONTROL             : constant := 7;
    SKL_CDCLK_PREPARE_FOR_CHANGE        : constant := 3;
@@ -240,11 +243,99 @@ package body HW.GFX.GMA.Power_And_Clocks is
       PD_Off (PW1);
    end Post_All_Off;
 
+   -- i915 keeps one DPLL0 VCO for CDCLK: 8.1 GHz (337.5/450/540/675) or
+   -- 8.64 GHz (308.571/432/540/617.143) for eDP 1.4 2.16/4.32 Gbps. Mixing
+   -- the two across a DC5/DC6 exit makes i915 warn and reprogram.
+   Preferred_VCO_864 : Boolean := False;
+
    function Normalize_CDClk (CDClk : in Int64) return Config.CDClk_Range is
-     (   if CDClk <= 337_500_000 then 337_500_000
-      elsif CDClk <= 450_000_000 then 450_000_000
-      elsif CDClk <= 540_000_000 then 540_000_000
-                                 else 675_000_000);
+   begin
+      if Preferred_VCO_864 then
+         return (if CDClk <= 308_571_000 then 308_571_000
+            elsif CDClk <= 432_000_000 then 432_000_000
+            elsif CDClk <= 540_000_000 then 540_000_000
+                                       else 617_143_000);
+      else
+         return (if CDClk <= 337_500_000 then 337_500_000
+            elsif CDClk <= 450_000_000 then 450_000_000
+            elsif CDClk <= 540_000_000 then 540_000_000
+                                       else 675_000_000);
+      end if;
+   end Normalize_CDClk;
+
+   function DPLL0_VCO_Is_864 return Boolean
+   is
+      PLL_Enabled, PLL_Locked : Boolean;
+      Ctrl : Word32;
+   begin
+      Registers.Is_Set_Mask
+        (Register => Registers.LCPLL1_CTL,
+         Mask     => LCPLL1_CTL_PLL_ENABLE,
+         Result   => PLL_Enabled);
+      Registers.Is_Set_Mask
+        (Register => Registers.LCPLL1_CTL,
+         Mask     => LCPLL1_CTL_PLL_LOCK,
+         Result   => PLL_Locked);
+      if not (PLL_Enabled and PLL_Locked) then
+         return False;
+      end if;
+
+      Registers.Read (Registers.DPLL_CTRL1, Ctrl);
+      if (Ctrl and (DPLL_CTRL1_DPLL0_HDMI_MODE or
+                    DPLL_CTRL1_DPLL0_SSC or
+                    DPLL_CTRL1_DPLL0_OVERRIDE)) /=
+         DPLL_CTRL1_DPLL0_OVERRIDE
+      then
+         return False;
+      end if;
+
+      case Ctrl and DPLL_CTRL1_DPLL0_LINK_RATE_MASK is
+         when DPLL_CTRL1_DPLL0_LINK_RATE_1080MHZ |
+              DPLL_CTRL1_DPLL0_LINK_RATE_2160MHZ =>
+            return True;
+         when others =>
+            return False;
+      end case;
+   end DPLL0_VCO_Is_864;
+
+   function DPLL0_Is_Running return Boolean
+   is
+      PLL_Enabled, PLL_Locked : Boolean;
+   begin
+      Registers.Is_Set_Mask
+        (Register => Registers.LCPLL1_CTL,
+         Mask     => LCPLL1_CTL_PLL_ENABLE,
+         Result   => PLL_Enabled);
+      Registers.Is_Set_Mask
+        (Register => Registers.LCPLL1_CTL,
+         Mask     => LCPLL1_CTL_PLL_LOCK,
+         Result   => PLL_Locked);
+      return PLL_Enabled and PLL_Locked;
+   end DPLL0_Is_Running;
+
+   function DPLL0_Link_Rate_Value (Link_Rate : DP_Bandwidth) return Word32 is
+     (case Link_Rate is
+         when DP_Bandwidth_5_4  => DPLL_CTRL1_DPLL0_LINK_RATE_2700MHZ,
+         when DP_Bandwidth_4_32 => DPLL_CTRL1_DPLL0_LINK_RATE_2160MHZ,
+         when DP_Bandwidth_3_24 => DPLL_CTRL1_DPLL0_LINK_RATE_1620MHZ,
+         when DP_Bandwidth_2_7  => DPLL_CTRL1_DPLL0_LINK_RATE_1350MHZ,
+         when DP_Bandwidth_2_16 => DPLL_CTRL1_DPLL0_LINK_RATE_1080MHZ,
+         when DP_Bandwidth_1_62 => DPLL_CTRL1_DPLL0_LINK_RATE_810MHZ);
+
+   procedure Set_DPLL0_Link_Rate (Link_Rate : DP_Bandwidth)
+   is
+   begin
+      -- Same as i915 skl_ddi_dpll0_enable(): rewrite CTRL1 while DPLL0
+      -- stays up for CDCLK. Link rate must stay in the current VCO set.
+      Registers.Unset_And_Set_Mask
+        (Register    => Registers.DPLL_CTRL1,
+         Mask_Unset  => DPLL_CTRL1_DPLL0_HDMI_MODE or
+                        DPLL_CTRL1_DPLL0_SSC or
+                        DPLL_CTRL1_DPLL0_LINK_RATE_MASK,
+         Mask_Set    => DPLL0_Link_Rate_Value (Link_Rate) or
+                        DPLL_CTRL1_DPLL0_OVERRIDE);
+      Registers.Posting_Read (Registers.DPLL_CTRL1);
+   end Set_DPLL0_Link_Rate;
 
    procedure Get_Cur_CDClk (CDClk : out Config.CDClk_Range)
    is
@@ -260,12 +351,21 @@ package body HW.GFX.GMA.Power_And_Clocks is
       DFSM : Word32;
    begin
       Registers.Read (Registers.DFSM, DFSM);
-      CDClk :=
-        (case DFSM and DFSM_DISPLAY_CDCLK_LIMIT_MASK is
-            when DFSM_DISPLAY_CDCLK_LIMIT_675MHZ   => 675_000_000,
-            when DFSM_DISPLAY_CDCLK_LIMIT_540MHZ   => 540_000_000,
-            when DFSM_DISPLAY_CDCLK_LIMIT_450MHZ   => 450_000_000,
-            when others                            => 337_500_000);
+      if Preferred_VCO_864 then
+         CDClk :=
+           (case DFSM and DFSM_DISPLAY_CDCLK_LIMIT_MASK is
+               when DFSM_DISPLAY_CDCLK_LIMIT_675MHZ   => 617_143_000,
+               when DFSM_DISPLAY_CDCLK_LIMIT_540MHZ   => 540_000_000,
+               when DFSM_DISPLAY_CDCLK_LIMIT_450MHZ   => 432_000_000,
+               when others                            => 308_571_000);
+      else
+         CDClk :=
+           (case DFSM and DFSM_DISPLAY_CDCLK_LIMIT_MASK is
+               when DFSM_DISPLAY_CDCLK_LIMIT_675MHZ   => 675_000_000,
+               when DFSM_DISPLAY_CDCLK_LIMIT_540MHZ   => 540_000_000,
+               when DFSM_DISPLAY_CDCLK_LIMIT_450MHZ   => 450_000_000,
+               when others                            => 337_500_000);
+      end if;
    end Get_Max_CDClk;
 
    procedure Set_CDClk (CDClk_In : Frequency_Type)
@@ -273,6 +373,49 @@ package body HW.GFX.GMA.Power_And_Clocks is
       CDClk : constant Config.CDClk_Range :=
          Normalize_CDClk (Frequency_Type'Min (CDClk_In, Config.Max_CDClk));
       Success : Boolean;
+
+      procedure Disable_DPLL0
+      is
+         PLL_Enabled : Boolean;
+      begin
+         Registers.Is_Set_Mask
+           (Register => Registers.LCPLL1_CTL,
+            Mask     => LCPLL1_CTL_PLL_ENABLE,
+            Result   => PLL_Enabled);
+         if PLL_Enabled then
+            Registers.Unset_Mask
+              (Register => Registers.LCPLL1_CTL,
+               Mask     => LCPLL1_CTL_PLL_ENABLE);
+            Registers.Wait_Unset_Mask
+              (Register => Registers.LCPLL1_CTL,
+               Mask     => LCPLL1_CTL_PLL_LOCK);
+         end if;
+      end Disable_DPLL0;
+
+      -- Lowest link rate for the preferred VCO; Match_DP_Link_Rate may
+      -- raise it later (1080↔2160 or 810↔1350/1620/2700) without a VCO
+      -- change.
+      procedure Enable_DPLL0
+      is
+         Base_Rate : constant Word32 :=
+           (if Preferred_VCO_864
+            then DPLL_CTRL1_DPLL0_LINK_RATE_1080MHZ
+            else DPLL_CTRL1_DPLL0_LINK_RATE_810MHZ);
+      begin
+         Registers.Unset_And_Set_Mask
+           (Register    => Registers.DPLL_CTRL1,
+            Mask_Unset  => DPLL_CTRL1_DPLL0_HDMI_MODE or
+                           DPLL_CTRL1_DPLL0_SSC or
+                           DPLL_CTRL1_DPLL0_LINK_RATE_MASK,
+            Mask_Set    => Base_Rate or DPLL_CTRL1_DPLL0_OVERRIDE);
+         Registers.Posting_Read (Registers.DPLL_CTRL1);
+         Registers.Set_Mask
+           (Register    => Registers.LCPLL1_CTL,
+            Mask        => LCPLL1_CTL_PLL_ENABLE);
+         Registers.Wait_Set_Mask
+           (Register    => Registers.LCPLL1_CTL,
+            Mask        => LCPLL1_CTL_PLL_LOCK);
+      end Enable_DPLL0;
    begin
       PCode.Mailbox_Request
         (MBox        => SKL_PCODE_CDCLK_CONTROL,
@@ -287,22 +430,63 @@ package body HW.GFX.GMA.Power_And_Clocks is
          return;
       end if;
 
-      Registers.Write
-        (Register => Registers.CDCLK_CTL,
-         Value    => (case CDClk is
-                        when 675_000_000 => CDCLK_CTL_CD_FREQ_SELECT_675MHZ,
-                        when 540_000_000 => CDCLK_CTL_CD_FREQ_SELECT_540MHZ,
-                        when 450_000_000 => CDCLK_CTL_CD_FREQ_SELECT_450MHZ,
-                        when others      => CDCLK_CTL_CD_FREQ_SELECT_337_5MHZ)
-                     or CDCLK_CTL_CD_FREQ_DECIMAL (CDClk));
+      -- Wa Display #1183: skl,kbl,cfl. Same order as skl_set_cdclk().
+      -- The register is left holding only the frequency select and the
+      -- decimal, which is what i915 compares against.
+      declare
+         Freq_Select : constant Word32 :=
+           (case CDClk is
+               when 617_143_000 | 675_000_000 =>
+                  CDCLK_CTL_CD_FREQ_SELECT_675MHZ,
+               when 540_000_000 =>
+                  CDCLK_CTL_CD_FREQ_SELECT_540MHZ,
+               when 432_000_000 | 450_000_000 =>
+                  CDCLK_CTL_CD_FREQ_SELECT_450MHZ,
+               when others =>
+                  CDCLK_CTL_CD_FREQ_SELECT_337_5MHZ);
+         Decimal : constant Word32 := CDCLK_CTL_CD_FREQ_DECIMAL (CDClk);
+         Freq_Mask : constant Word32 :=
+            CDCLK_CTL_CD_FREQ_SELECT_MASK or CDCLK_CTL_CD_FREQ_DECIMAL_MASK;
+         Need_PLL : constant Boolean :=
+            (not DPLL0_Is_Running) or
+            (DPLL0_VCO_Is_864 /= Preferred_VCO_864);
+         CDCLK_CTL : Word32;
+      begin
+         if Need_PLL then
+            Disable_DPLL0;
+         end if;
+
+         Registers.Read (Registers.CDCLK_CTL, CDCLK_CTL);
+         if Need_PLL then
+            CDCLK_CTL := (CDCLK_CTL and not Freq_Mask) or
+                         Freq_Select or Decimal;
+            Registers.Write (Registers.CDCLK_CTL, CDCLK_CTL);
+         end if;
+
+         CDCLK_CTL := CDCLK_CTL or CDCLK_CTL_DIVMUX_CD_OVERRIDE;
+         Registers.Write (Registers.CDCLK_CTL, CDCLK_CTL);
+         Registers.Posting_Read (Registers.CDCLK_CTL);
+
+         if Need_PLL then
+            Enable_DPLL0;
+         end if;
+
+         CDCLK_CTL := CDCLK_CTL and not Freq_Mask;
+         Registers.Write (Registers.CDCLK_CTL, CDCLK_CTL);
+         CDCLK_CTL := CDCLK_CTL or Freq_Select or Decimal;
+         Registers.Write (Registers.CDCLK_CTL, CDCLK_CTL);
+         CDCLK_CTL := CDCLK_CTL and not CDCLK_CTL_DIVMUX_CD_OVERRIDE;
+         Registers.Write (Registers.CDCLK_CTL, CDCLK_CTL);
+         Registers.Posting_Read (Registers.CDCLK_CTL);
+      end;
 
       PCode.Mailbox_Write
         (MBox        => SKL_PCODE_CDCLK_CONTROL,
          Command     => (case CDClk is
-                           when 675_000_000 => 3,
-                           when 540_000_000 => 2,
-                           when 450_000_000 => 1,
-                           when others      => 0));
+                           when 617_143_000 | 675_000_000 => 3,
+                           when 540_000_000               => 2,
+                           when 432_000_000 | 450_000_000 => 1,
+                           when others                    => 0));
       Registers.Set_Mask
         (Register    => Registers.DBUF_CTL_S0,
          Mask        => DBUF_CTL_DBUF_POWER_REQUEST);
@@ -312,6 +496,35 @@ package body HW.GFX.GMA.Power_And_Clocks is
 
       Config.CDClk := CDClk;
    end Set_CDClk;
+
+   procedure Match_DP_Link_Rate
+     (Link_Rate : in     DP_Bandwidth;
+      Success   :    out Boolean)
+   is
+      Want_864 : constant Boolean :=
+         Link_Rate in DP_Bandwidth_2_16 | DP_Bandwidth_4_32;
+   begin
+      if Want_864 /= Preferred_VCO_864 or else not DPLL0_Is_Running then
+         Preferred_VCO_864 := Want_864;
+         Get_Max_CDClk (Config.Max_CDClk);
+         Set_CDClk (Config.CDClk);
+      end if;
+
+      Set_DPLL0_Link_Rate (Link_Rate);
+
+      declare
+         Ctrl : Word32;
+         Expect : constant Word32 :=
+            DPLL0_Link_Rate_Value (Link_Rate) or DPLL_CTRL1_DPLL0_OVERRIDE;
+      begin
+         Registers.Read (Registers.DPLL_CTRL1, Ctrl);
+         Success := DPLL0_Is_Running and then
+            (Ctrl and (DPLL_CTRL1_DPLL0_HDMI_MODE or
+                       DPLL_CTRL1_DPLL0_SSC or
+                       DPLL_CTRL1_DPLL0_LINK_RATE_MASK or
+                       DPLL_CTRL1_DPLL0_OVERRIDE)) = Expect;
+      end;
+   end Match_DP_Link_Rate;
 
    procedure Get_Raw_Clock (Raw_Clock : out Frequency_Type)
    is
@@ -341,18 +554,6 @@ package body HW.GFX.GMA.Power_And_Clocks is
       PD_On (PW1);
       PD_On (MISC_IO);
 
-      -- TODO: Set to preferred eDP rate:
-      -- Registers.Unset_And_Set_Mask
-      --   (Register    => Registers.DPLL_CTRL1,
-      --    Unset_Mask  => DPLL_CTRL1_DPLL0_LINK_RATE_MASK,
-      --    Set_Mask    => DPLL_CTRL1_DPLL0_LINK_RATE_...);
-      Registers.Set_Mask
-        (Register    => Registers.LCPLL1_CTL,
-         Mask        => LCPLL1_CTL_PLL_ENABLE);
-      Registers.Wait_Set_Mask
-        (Register    => Registers.LCPLL1_CTL,
-         Mask        => LCPLL1_CTL_PLL_LOCK);
-
       -- WaEnableChickenDCPR:skl,bxt,kbl,glk,cfl
       Registers.Set_Mask
         (Register    => Registers.GEN8_CHICKEN_DCPR_1,
@@ -363,6 +564,9 @@ package body HW.GFX.GMA.Power_And_Clocks is
         (Register    => Registers.ARB_CTL,
          Mask        => DISP_FBC_MEMORY_WAKE);
 
+      -- Default to the 8.1 GHz VCO. Match_DP_Link_Rate switches to 8.64 GHz
+      -- only when eDP trains at 2.16/4.32 Gbps (same as skl_dpll0_vco()).
+      Preferred_VCO_864 := False;
       Get_Cur_CDClk (Config.CDClk);
       Get_Max_CDClk (Config.Max_CDClk);
       Set_CDClk (Config.Default_CDClk_Freq);

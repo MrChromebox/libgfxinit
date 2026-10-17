@@ -78,7 +78,10 @@ package body HW.GFX.GMA.PLLs.DPLL is
    begin
       return (case Link_Rate is
                when DP_Bandwidth_5_4   => LINK_RATE_2700MHZ,
+               when DP_Bandwidth_4_32  => LINK_RATE_2160MHZ,
+               when DP_Bandwidth_3_24  => LINK_RATE_1620MHZ,
                when DP_Bandwidth_2_7   => LINK_RATE_1350MHZ,
+               when DP_Bandwidth_2_16  => LINK_RATE_1080MHZ,
                when DP_Bandwidth_1_62  => LINK_RATE_810MHZ);
    end LINK_RATE;
 

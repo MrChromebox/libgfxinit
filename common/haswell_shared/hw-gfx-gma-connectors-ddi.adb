@@ -92,7 +92,10 @@ package body HW.GFX.GMA.Connectors.DDI is
    PORT_CLK_SEL_LCPLL : constant PORT_CLK_SEL_LCPLL_T :=
       PORT_CLK_SEL_LCPLL_T'
      (HW.GFX.DP_Bandwidth_1_62 => PORT_CLK_SEL_LCPLL810,
+      HW.GFX.DP_Bandwidth_2_16 => PORT_CLK_SEL_LCPLL810,
       HW.GFX.DP_Bandwidth_2_7  => PORT_CLK_SEL_LCPLL1350,
+      HW.GFX.DP_Bandwidth_3_24 => PORT_CLK_SEL_LCPLL1350,
+      HW.GFX.DP_Bandwidth_4_32 => PORT_CLK_SEL_LCPLL2700,
       HW.GFX.DP_Bandwidth_5_4  => PORT_CLK_SEL_LCPLL2700);
 
    DISPIO_CR_TX_BLNC_LEG_DISBL_MASK    : constant := 16#1f# * 2 ** 23;

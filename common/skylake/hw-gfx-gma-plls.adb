@@ -14,6 +14,7 @@
 
 with HW.GFX.GMA.PLLs.DPLL_0;
 with HW.GFX.GMA.PLLs.DPLL;
+with HW.GFX.GMA.Power_And_Clocks;
 
 with HW.Debug;
 with GNAT.Source_Info;
@@ -102,16 +103,30 @@ is
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
 
-      if Port_Cfg.Port = DIGI_A then
-         DPLL_0.Check_Link_Rate (Port_Cfg.DP.Bandwidth, Success);
+      -- eDP on DDI A is hardwired to DPLL0 (i915 skl_get_dpll). Program
+      -- the CDCLK VCO and DPLL_CTRL1 for the selected link rate; do not
+      -- fall back to DPLL1/2/3.
+      if Port_Cfg.Port = DIGI_A and then Port_Cfg.Display = DP then
+         Power_And_Clocks.Match_DP_Link_Rate
+           (Link_Rate => Port_Cfg.DP.Bandwidth,
+            Success   => Success);
+         if Success then
+            PLL := DPLL0;
+         else
+            PLL := Invalid;
+         end if;
       else
-         Success := False;
-      end if;
+         if Port_Cfg.Port = DIGI_A then
+            DPLL_0.Check_Link_Rate (Port_Cfg.DP.Bandwidth, Success);
+         else
+            Success := False;
+         end if;
 
-      if Success then
-         PLL := DPLL0;
-      else
-         Alloc_Configurable (Port_Cfg, PLL, Success);
+         if Success then
+            PLL := DPLL0;
+         else
+            Alloc_Configurable (Port_Cfg, PLL, Success);
+         end if;
       end if;
    end Alloc;
 

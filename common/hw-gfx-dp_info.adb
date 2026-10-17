@@ -99,13 +99,32 @@ package body HW.GFX.DP_Info is
              Word16 (Raw_Payload (Offset));
    end Read_LE16;
 
+   -- DPCD value is in units of 200 kHz of the link bit rate. Times 20 is
+   -- the symbol rate in kHz, which is how i915 stores the same table.
+   procedure Bandwidth_From_Rate
+     (Rate_kHz :     Natural;
+      BW       : out DP_Bandwidth;
+      Valid    : out Boolean)
+   is
+   begin
+      case Rate_kHz is
+         when 162_000 => BW := DP_Bandwidth_1_62;
+         when 216_000 => BW := DP_Bandwidth_2_16;
+         when 270_000 => BW := DP_Bandwidth_2_7;
+         when 324_000 => BW := DP_Bandwidth_3_24;
+         when 432_000 => BW := DP_Bandwidth_4_32;
+         when 540_000 => BW := DP_Bandwidth_5_4;
+         when others  => BW := DP_Bandwidth'First;
+      end case;
+      Valid := Rate_kHz = Natural (DP_Symbol_Rate (BW) / 1_000);
+   end Bandwidth_From_Rate;
+
    procedure Read_eDP_Rates
      (Link     : in out DP_Link;
       Port     : in     T)
    is
       Data : DP_Defs.Aux_Payload;
       Length : DP_Defs.Aux_Payload_Length;
-      Max_Rate : Natural;
       Success  : Boolean;
 
       Caps_Size : constant := 3;
@@ -113,6 +132,10 @@ package body HW.GFX.DP_Info is
       eDP_Rev_1_4 : constant := 3;
    begin
       pragma Debug (Debug.Put_Line (GNAT.Source_Info.Enclosing_Entity));
+
+      Link.Receiver_Caps.Use_Rate_Select := False;
+      Link.Receiver_Caps.Rates := No_eDP_Rates;
+      Link.Use_Rate_Select := False;
 
       Length := Caps_Size;
       Aux_Ch.Aux_Read
@@ -141,37 +164,29 @@ package body HW.GFX.DP_Info is
       pragma Debug (Debug.New_Line);
       pragma Debug (Debug.Put_Line ("DPCD eDP 1.4+ link rates:"));
 
-      -- TODO: support individual link rates (storing them all)
-
-      Max_Rate := Natural'First;
-      for I in 0 .. Length / 2 - 1 loop
-         pragma Loop_Invariant (Max_Rate <= Natural (Word16'Last));
+      for I in eDP_Rate_Index loop
          declare
-            Rate : constant Word16 := Read_LE16 (Data, I * 2);
+            Rate : constant Word16 :=
+              Read_LE16 (Data, DP_Defs.Aux_Payload_Index (Natural (I) * 2));
+            Rate_kHz : Natural;
+            BW : DP_Bandwidth;
+            Valid : Boolean;
          begin
-            exit when Rate = 0; -- prematurely exit the loop
+            exit when Rate = 0;
+            Rate_kHz := Natural (Rate) * 20;
             pragma Debug (Debug.Put (" - "));
-            pragma Debug (Debug.Put_Int8 (Int8 (I)));
+            pragma Debug (Debug.Put_Int8 (Int8 (Natural (I))));
             pragma Debug (Debug.Put (": "));
             pragma Debug (Debug.Put_Word16 (Rate));
             pragma Debug (Debug.New_Line);
-            if Natural (Rate) > Max_Rate then
-               Max_Rate := Natural (Rate);
+            Bandwidth_From_Rate (Rate_kHz, BW, Valid);
+            if Valid then
+               Link.Receiver_Caps.Rates (I) := (Valid => True, Bandwidth => BW);
+               Link.Receiver_Caps.Use_Rate_Select := True;
             end if;
          end;
       end loop;
       pragma Debug (Debug.New_Line);
-
-      -- convert to KHz
-      Max_Rate := Max_Rate * 20;
-
-      if Max_Rate >= 540_000 then
-         Link.Receiver_Caps.Max_Link_Rate := DP_Bandwidth_5_4;
-      elsif Max_Rate >= 270_000 then
-         Link.Receiver_Caps.Max_Link_Rate := DP_Bandwidth_2_7;
-      elsif Max_Rate >= 162_000 then
-         Link.Receiver_Caps.Max_Link_Rate := DP_Bandwidth_1_62;
-      end if;
    end Read_eDP_Rates;
 
    procedure Minimum_Lane_Count
@@ -195,19 +210,49 @@ package body HW.GFX.DP_Info is
       end case;
    end Minimum_Lane_Count;
 
+   -- LINK_BW_SET only encodes these three. The others need LINK_RATE_SET.
+   function Is_Link_BW_Rate (BW : DP_Bandwidth) return Boolean is
+     (BW in DP_Bandwidth_1_62 | DP_Bandwidth_2_7 | DP_Bandwidth_5_4);
+
    procedure Preferred_Link_Setting
      (Link        : in out DP_Link;
       Mode        : in     Mode_Type;
       Success     :    out Boolean)
    is
    begin
-      Link.Bandwidth          := Link.Receiver_Caps.Max_Link_Rate;
-      Link.Enhanced_Framing   := Link.Receiver_Caps.Enhanced_Framing;
+      Link.Enhanced_Framing := Link.Receiver_Caps.Enhanced_Framing;
+      Link.Use_Rate_Select := False;
 
-      Minimum_Lane_Count (Link, Mode, Success);
+      -- eDP 1.4: lowest advertised rate that fits the mode, then the
+      -- fewest lanes. i915 does the same when it is not forcing max params.
+      if Link.Receiver_Caps.Use_Rate_Select then
+         Success := False;
+         for BW in DP_Bandwidth loop
+            exit when Success;
+            for I in eDP_Rate_Index loop
+               if Link.Receiver_Caps.Rates (I).Valid and then
+                  Link.Receiver_Caps.Rates (I).Bandwidth = BW
+               then
+                  Link.Bandwidth := BW;
+                  Link.Rate_Select := I;
+                  Minimum_Lane_Count (Link, Mode, Success);
+                  Success := Success and
+                     Link.Lane_Count <= Link.Receiver_Caps.Max_Lane_Count;
+                  if Success then
+                     Link.Use_Rate_Select := True;
+                     exit;
+                  end if;
+               end if;
+            end loop;
+         end loop;
+      else
+         Link.Bandwidth := Link.Receiver_Caps.Max_Link_Rate;
 
-      Success := Success and
-                  Link.Lane_Count <= Link.Receiver_Caps.Max_Lane_Count;
+         Minimum_Lane_Count (Link, Mode, Success);
+
+         Success := Success and
+                     Link.Lane_Count <= Link.Receiver_Caps.Max_Lane_Count;
+      end if;
 
       pragma Debug (not Success, Debug.Put_Line
         ("Mode requirements exceed available bandwidth!"));
@@ -219,13 +264,55 @@ package body HW.GFX.DP_Info is
       Success     :    out Boolean)
    is
    begin
-      if Link.Bandwidth > DP_Bandwidth'First then
-         Link.Bandwidth := DP_Bandwidth'Pred (Link.Bandwidth);
+      if Link.Use_Rate_Select then
+         -- Training failed at the narrow setting. Retry once at the
+         -- highest advertised rate and the sink's maximum lane count.
+         declare
+            Max_BW  : DP_Bandwidth := Link.Bandwidth;
+            Max_Idx : eDP_Rate_Index := Link.Rate_Select;
+            Found   : Boolean := False;
+         begin
+            for BW in reverse DP_Bandwidth loop
+               exit when Found;
+               for I in eDP_Rate_Index loop
+                  if Link.Receiver_Caps.Rates (I).Valid and then
+                     Link.Receiver_Caps.Rates (I).Bandwidth = BW
+                  then
+                     Max_BW := BW;
+                     Max_Idx := I;
+                     Found := True;
+                     exit;
+                  end if;
+               end loop;
+            end loop;
 
-         Minimum_Lane_Count (Link, Mode, Success);
+            if Found and then
+               (Link.Bandwidth /= Max_BW or
+                Link.Lane_Count /= Link.Receiver_Caps.Max_Lane_Count)
+            then
+               Link.Bandwidth := Max_BW;
+               Link.Rate_Select := Max_Idx;
+               Link.Lane_Count := Link.Receiver_Caps.Max_Lane_Count;
+               Success := True;
+            else
+               Success := False;
+            end if;
+         end;
+      elsif Link.Bandwidth > DP_Bandwidth'First then
+         loop
+            Link.Bandwidth := DP_Bandwidth'Pred (Link.Bandwidth);
+            exit when Is_Link_BW_Rate (Link.Bandwidth);
+            exit when Link.Bandwidth = DP_Bandwidth'First;
+         end loop;
 
-         Success := Success and
-                    Link.Lane_Count <= Link.Receiver_Caps.Max_Lane_Count;
+         if Is_Link_BW_Rate (Link.Bandwidth) then
+            Minimum_Lane_Count (Link, Mode, Success);
+
+            Success := Success and
+                       Link.Lane_Count <= Link.Receiver_Caps.Max_Lane_Count;
+         else
+            Success := False;
+         end if;
       else
          Success := False;
       end if;
@@ -238,6 +325,10 @@ package body HW.GFX.DP_Info is
       Debug.Put_Int32 (Int32 (DP_Symbol_Rate (Link.Bandwidth)));
       Debug.Put ("; Lane Count = ");
       Debug.Put_Int32 (Int32 (Lane_Count_As_Integer (Link.Lane_Count)));
+      if Link.Use_Rate_Select then
+         Debug.Put ("; LINK_RATE_SET = ");
+         Debug.Put_Int32 (Int32 (Natural (Link.Rate_Select)));
+      end if;
       Debug.New_Line;
       Debug.New_Line;
    end Dump_Link_Setting;

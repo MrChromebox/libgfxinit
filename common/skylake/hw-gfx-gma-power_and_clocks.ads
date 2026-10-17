@@ -31,6 +31,12 @@ private package HW.GFX.GMA.Power_And_Clocks is
       Post => Config_Helpers.Stable_FB (Configs'Old, Configs);
    procedure Enable_CDClk is null;
 
+   -- eDP on DDI A must use DPLL0. Switch the CDCLK VCO when the link needs
+   -- 2.16/4.32 Gbps (8.64 GHz) and program DPLL_CTRL1 for the link rate.
+   procedure Match_DP_Link_Rate
+     (Link_Rate : in     DP_Bandwidth;
+      Success   :    out Boolean);
+
    procedure Power_Set_To (Configs : Pipe_Configs);
    procedure Power_Up (Port : Active_Port_Type; Success : out Boolean);
    procedure Power_Up (Old_Configs, New_Configs : Pipe_Configs);

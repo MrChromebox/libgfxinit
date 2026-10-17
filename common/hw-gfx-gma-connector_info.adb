@@ -76,6 +76,30 @@ package body HW.GFX.GMA.Connector_Info is
               (Link     => Port_Cfg.DP,
                Port     => DP_Port);
 
+            -- 2.16/3.24/4.32 Gbps are DPLL link-rate fields on Skylake.
+            -- Other generations have no PLL programming for them.
+            if not Config.Gen_Skylake then
+               declare
+                  Any : Boolean := False;
+               begin
+                  for I in Port_Cfg.DP.Receiver_Caps.Rates'Range loop
+                     if Port_Cfg.DP.Receiver_Caps.Rates (I).Valid and then
+                        Port_Cfg.DP.Receiver_Caps.Rates (I).Bandwidth not in
+                           HW.GFX.DP_Bandwidth_1_62 |
+                           HW.GFX.DP_Bandwidth_2_7 |
+                           HW.GFX.DP_Bandwidth_5_4
+                     then
+                        Port_Cfg.DP.Receiver_Caps.Rates (I).Valid := False;
+                     end if;
+                     Any := Any or
+                        Port_Cfg.DP.Receiver_Caps.Rates (I).Valid;
+                  end loop;
+                  if not Any then
+                     Port_Cfg.DP.Receiver_Caps.Use_Rate_Select := False;
+                  end if;
+               end;
+            end if;
+
             DP_Info.Preferred_Link_Setting
               (Link     => Port_Cfg.DP,
                Mode     => Port_Cfg.Mode,

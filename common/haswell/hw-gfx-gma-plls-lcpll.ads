@@ -17,9 +17,14 @@ is
 
    type Fixed_LCPLLs_Array is array (HW.GFX.DP_Bandwidth) of LCPLLs;
 
+   -- 2.16/3.24/4.32 are not selected before Skylake. The LCPLL entries
+   -- only keep this array complete.
    Fixed_LCPLLs : constant Fixed_LCPLLs_Array := Fixed_LCPLLs_Array'
      (DP_Bandwidth_5_4  => LCPLL0,
+      DP_Bandwidth_4_32 => LCPLL0,
+      DP_Bandwidth_3_24 => LCPLL1,
       DP_Bandwidth_2_7  => LCPLL1,
+      DP_Bandwidth_2_16 => LCPLL2,
       DP_Bandwidth_1_62 => LCPLL2);
 
    type Value_Array is array (LCPLLs) of Word32;

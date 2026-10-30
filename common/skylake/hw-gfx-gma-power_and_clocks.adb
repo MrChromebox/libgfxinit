@@ -481,6 +481,11 @@ package body HW.GFX.GMA.Power_And_Clocks is
          Get_Raw_Clock (Raw_Clock);
          Config.Raw_Clock := Raw_Clock;
       end;
+
+      -- Tell i915 that pre-OS programmed CDCLK (skl_sanitize_cdclk).
+      -- Without this, i915 forces the 8.1 GHz VCO minimum (337.5 MHz),
+      -- which underruns high-dotclock eDP modes left active across handoff.
+      Registers.Write (Registers.SWF_ILK_18, 16#0000_0001#);
    end Initialize;
 
    procedure Limit_Dotclocks
@@ -501,6 +506,8 @@ package body HW.GFX.GMA.Power_And_Clocks is
    begin
       Set_CDClk (New_CDClk);
       Config_Helpers.Limit_Dotclocks (Configs, Config.CDClk);
+      -- Keep the handoff flag set across CDCLK changes for the final mode.
+      Registers.Write (Registers.SWF_ILK_18, 16#0000_0001#);
    end Update_CDClk;
 
    procedure Power_Set_To (Configs : Pipe_Configs) is

@@ -181,6 +181,7 @@ is
       GEN9_CLKGATE_DIS_5,
       BLC_PWM_CPU_CTL2,
       BLC_PWM_CPU_CTL,
+      SWF_ILK_18,
       DFSM,
       DSSM,
       HTOTAL_A,
@@ -1923,6 +1924,8 @@ is
       PCH_HDMID             => 16#0e_1160# / Register_Width,
 
       -- Intel Registers
+      -- i915 SWF_ILK(0x18): pre-OS display-init scratch for CDCLK sanitize
+      SWF_ILK_18            => 16#04_f060# / Register_Width,
       DFSM                  => 16#05_1000# / Register_Width,
       DSSM                  => 16#05_1004# / Register_Width,
       CPU_VGACNTRL          => 16#04_1000# / Register_Width,

@@ -30,6 +30,11 @@ is
    SHOTPLUG_CTL_HPD_INVERT_MASK        : constant := 16#0808_0808#;
    SHOTPLUG_CTL_DETECT_MASK            : constant := 16#0303_0303#;
 
+   -- CPT+ south display engine live HPD (SDEISR), same bits as BDW GOP.
+   SDE_PORTB_HOTPLUG_CPT               : constant := 1 * 2 ** 21;
+   SDE_PORTC_HOTPLUG_CPT               : constant := 1 * 2 ** 22;
+   SDE_PORTD_HOTPLUG_CPT               : constant := 1 * 2 ** 23;
+
    type Digital_Port_Value is array (Digital_Port) of Word32;
    DDI_PORT_DETECTED : constant Digital_Port_Value :=
      (DIGI_B => 1 * 2 **  2,
@@ -60,6 +65,11 @@ is
       DIGI_C => 1 * 2 **  9,
       DIGI_D => 1 * 2 ** 17,
       DIGI_A => 1 * 2 ** 25,
+      others => 0);
+   SDE_PORT_HOTPLUG_CPT : constant Digital_Port_Value :=
+     (DIGI_B => SDE_PORTB_HOTPLUG_CPT,
+      DIGI_C => SDE_PORTC_HOTPLUG_CPT,
+      DIGI_D => SDE_PORTD_HOTPLUG_CPT,
       others => 0);
 
    procedure Initialize
@@ -152,6 +162,16 @@ is
                Mask_Set    => SHOTPLUG_CTL_HPD_INPUT_ENABLE (Port) or
                               (SHOTPLUG_CTL_HPD_INVERT (Port) and Invert_Mask) or
                               SHOTPLUG_CTL_HPD_STATUS (Port)); -- clear status
+            -- Match BDW GOP: unmask and enable south HPD IRQ so SDEISR
+            -- reflects live cable detect before PCH AUX.
+            if Config.Has_PCH_Aux_Channels then
+               Registers.Unset_Mask
+                 (Register => Registers.SDEIMR,
+                  Mask     => SDE_PORT_HOTPLUG_CPT (Port));
+               Registers.Set_Mask
+                 (Register => Registers.SDEIER,
+                  Mask     => SDE_PORT_HOTPLUG_CPT (Port));
+            end if;
          else
             Registers.Unset_Mask
               (Register => Registers.SHOTPLUG_CTL,
@@ -190,6 +210,23 @@ is
          Detected := False;
       end if;
    end Hotplug_Detect;
+
+   procedure Hotplug_Connected
+     (Port     : in Active_Port_Type;
+      Detected : out Boolean)
+   is
+      Ctl32 : Word32;
+      GPU_Port : constant GMA.GPU_Port :=
+         Config_Helpers.To_GPU_Port (Primary, Port);
+   begin
+      -- BDW GOP gates PCH AUX on SDEISR live HPD (CPT bits), not SHOTPLUG.
+      if Config.Has_PCH_Aux_Channels and then GPU_Port in DIGI_B .. DIGI_D then
+         Registers.Read (Registers.SDEISR, Ctl32, Verbose => False);
+         Detected := (Ctl32 and SDE_PORT_HOTPLUG_CPT (GPU_Port)) /= 0;
+      else
+         Detected := True;
+      end if;
+   end Hotplug_Connected;
 
    procedure Clear_Hotplug_Detect (Port : Active_Port_Type)
    is

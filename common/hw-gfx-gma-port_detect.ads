@@ -20,6 +20,11 @@ private package HW.GFX.GMA.Port_Detect is
      (Port     : in Active_Port_Type;
       Detected : out Boolean);
 
+   -- Live cable presence (level), as opposed to Hotplug_Detect edge events.
+   procedure Hotplug_Connected
+     (Port     : in Active_Port_Type;
+      Detected : out Boolean);
+
    procedure Clear_Hotplug_Detect (Port : Active_Port_Type);
 
 end HW.GFX.GMA.Port_Detect;

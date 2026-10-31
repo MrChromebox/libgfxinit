@@ -18,4 +18,8 @@ $(call src-to-obj,,gfxtest/hw-gfx-gma-gfx_test.adb): ADAFLAGS += -gnaty-S
 
 gfx_test: $(binary)
 
-.PHONY: gfx_test
+phony_gpr: gfxinit_baytrail.gpr
+	sed -i -e's/".*spark\.adc"/"spark.adc"/' $<
+proof-allconfigs/baytrail/gnatprove/gnatprove.out: phony_gpr
+
+.PHONY: gfx_test phony_gpr

@@ -164,7 +164,14 @@ is
 
       if Success then
          Panel.Wait_On (Config_Helpers.To_Panel (Port), VDD_Only => True);
-         Read_EDID (Raw_EDID, Port, Success);
+         -- With PCH AUX (HSW/BDW), match GOP: only attempt external DP AUX
+         -- when SDEISR reports live HPD. Skip eDP (DIGI_A / HOTPLUG_CTL).
+         if Config.Has_PCH_Aux_Channels and then Port in DP1 .. DP3 then
+            Port_Detect.Hotplug_Connected (Port, Success);
+         end if;
+         if Success then
+            Read_EDID (Raw_EDID, Port, Success);
+         end if;
       end if;
 
       if Success and then
@@ -192,9 +199,18 @@ is
             -- user might have attached both by accident and there are ru-
             -- mors of displays that got fried by applying the wrong signal.
             declare
-               Have_Sibling_EDID : Boolean;
+               Sibling : constant Active_Port_Type := Sibling_Port (Port);
+               Have_Sibling_EDID : Boolean := False;
+               Try_Sibling : Boolean := True;
             begin
-               Read_EDID (Raw_EDID, Sibling_Port (Port), Have_Sibling_EDID);
+               if Config.Has_PCH_Aux_Channels and then
+                  Sibling in DP1 .. DP3
+               then
+                  Port_Detect.Hotplug_Connected (Sibling, Try_Sibling);
+               end if;
+               if Try_Sibling then
+                  Read_EDID (Raw_EDID, Sibling, Have_Sibling_EDID);
+               end if;
                if Have_Sibling_EDID then
                   Pipe_Cfg.Port := Disabled;
                   Success := False;

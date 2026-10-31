@@ -135,4 +135,13 @@ is
       pragma Warnings (GNATprove, On, "unused assignment to ""Ignored_HPD""");
    end Clear_Hotplug_Detect;
 
+   procedure Hotplug_Connected
+     (Port     : in Active_Port_Type;
+      Detected : out Boolean)
+   is
+      pragma Unreferenced (Port);
+   begin
+      Detected := True;
+   end Hotplug_Connected;
+
 end HW.GFX.GMA.Port_Detect;

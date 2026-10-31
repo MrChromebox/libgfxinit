@@ -115,6 +115,15 @@ is
       end if;
    end Hotplug_Detect;
 
+   procedure Hotplug_Connected
+     (Port     : in Active_Port_Type;
+      Detected : out Boolean)
+   is
+      pragma Unreferenced (Port);
+   begin
+      Detected := True;
+   end Hotplug_Connected;
+
    procedure Clear_Hotplug_Detect (Port : Active_Port_Type)
    is
       Ignored_HPD : Boolean;

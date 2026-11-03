@@ -806,6 +806,22 @@ is
    function Stolen_Size_Gen6 (GGC : Word16) return Stolen_Size_Range is
      (Stolen_Size_Range (Shift_Right (GGC, 3) and 16#1f#) * 32 * 2 ** 20);
 
+   function GGMS_CHV (GGC : Word16) return Natural is
+     (Natural (Shift_Right (GGC, 8) and 16#03#));
+   function GTT_Size_CHV (GGC : Word16) return Natural is
+     (if GGMS_CHV (GGC) /= 0 then
+         Natural (Shift_Left (Word32'(1), 20 + GGMS_CHV (GGC))) else 0);
+
+   function GMS_CHV (GGC : Word16) return Stolen_Size_Range is
+     (Stolen_Size_Range (Shift_Right (GGC, 3) and 16#1f#));
+   function Stolen_Size_CHV (GGC : Word16) return Stolen_Size_Range is
+     (if GMS_CHV (GGC) < 16#11# then
+         GMS_CHV (GGC) * 32 * 2 ** 20
+      elsif GMS_CHV (GGC) < 16#17# then
+         (GMS_CHV (GGC) - 16#11# + 2) * 4 * 2 ** 20
+      else
+         (GMS_CHV (GGC) - 16#17# + 9) * 4 * 2 ** 20);
+
    function GGMS_Gen8 (GGC : Word16) return Natural is
      (Natural (Shift_Right (GGC, 6) and 16#03#));
    function GTT_Size_Gen8 (GGC : Word16) return Natural is
@@ -848,7 +864,10 @@ is
       elsif Config.Gen_G45 or Config.CPU_Ironlake then
          GTT_Size    := GTT_Size_Gen4 (GGC);
          Stolen_Size := Stolen_Size_Gen4 (GGC);
-      elsif Config.Gen_Valleyview or Config.CPU_Sandybridge or
+      elsif Config.CPU_Braswell then
+         GTT_Size    := GTT_Size_CHV (GGC);
+         Stolen_Size := Stolen_Size_CHV (GGC);
+      elsif Config.CPU_Baytrail or Config.CPU_Sandybridge or
             Config.CPU_Ivybridge or Config.CPU_Haswell
       then
          GTT_Size    := GTT_Size_Gen6 (GGC);
@@ -892,7 +911,9 @@ is
             Dev.Read16 (GGC, GGC_Reg);
             if Config.Gen_G45 or Config.CPU_Ironlake then
                GTT_Size := GTT_Size_Gen4 (GGC);
-            elsif Config.Gen_Valleyview or
+            elsif Config.CPU_Braswell then
+               GTT_Size := GTT_Size_CHV (GGC);
+            elsif Config.CPU_Baytrail or
                   Config.CPU_Sandybridge or
                   Config.CPU_Ivybridge or
                   Config.CPU_Haswell

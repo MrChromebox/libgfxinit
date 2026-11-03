@@ -552,7 +552,7 @@ is
         (Register => PP (Panel).CONTROL,
          Mask     => PCH_PP_CONTROL_BACKLIGHT_ENABLE);
 
-      if Config.Gen_Valleyview then
+      if Config.CPU_Baytrail then
          Registers.Set_Mask
            (Register => Registers.VLV_SWF_10,
             Mask     => (if Panel = Panel_1 then VLV_SWF10_PIPEA_LFP
@@ -572,7 +572,7 @@ is
         (Register => PP (Panel).CONTROL,
          Mask     => PCH_PP_CONTROL_BACKLIGHT_ENABLE);
 
-      if Config.Gen_Valleyview then
+      if Config.CPU_Baytrail then
          Registers.Unset_Mask
            (Register => Registers.VLV_SWF_10,
             Mask     => (if Panel = Panel_1 then VLV_SWF10_PIPEA_LFP

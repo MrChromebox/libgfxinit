@@ -69,16 +69,17 @@ CONFIG_GFX_GMA_IGNORE_PRESENCE_STRAPS := $(if $(filter y,$(CONFIG_GFX_GMA_IGNORE
 CONFIG_GFX_GMA_EDP_LOW_VOLTAGE_SWING := $(if $(filter y,$(CONFIG_GFX_GMA_EDP_LOW_VOLTAGE_SWING)),True,False)
 CONFIG_GFX_GMA_EDP_AUX_BACKLIGHT := $(if $(filter y,$(CONFIG_GFX_GMA_EDP_AUX_BACKLIGHT)),True,False)
 
-_GEN_TLA_SUBSTITUTIONS := i945 g45 ilk hsw skl tgl adl
+_GEN_TLA_SUBSTITUTIONS := i945 g45 vlv ilk hsw skl tgl adl
 
 _GEN_NONCONST := $(strip \
 		 $(if $(filter I945,$(CONFIG_GFX_GMA_GENERATION)),i945, \
 		 $(if $(filter G45,$(CONFIG_GFX_GMA_GENERATION)),g45, \
+		 $(if $(filter Valleyview,$(CONFIG_GFX_GMA_GENERATION)),vlv, \
 		 $(if $(filter Ironlake,$(CONFIG_GFX_GMA_GENERATION)),ilk, \
 		 $(if $(filter Haswell,$(CONFIG_GFX_GMA_GENERATION)),hsw,  \
 		 $(if $(filter Skylake,$(CONFIG_GFX_GMA_GENERATION)),skl, \
 		 $(if $(filter Tigerlake,$(CONFIG_GFX_GMA_GENERATION)),tgl, \
-		 $(if $(filter AlderlakeP,$(CONFIG_GFX_GMA_GENERATION)),adl))))))))
+		 $(if $(filter AlderlakeP,$(CONFIG_GFX_GMA_GENERATION)),adl)))))))))
 # GNATprove (GPL 2017) doesn't realize when a boolean expression
 # that depends both on static values and variables can be evalu-
 # ated at compile time (e.g. `False and then Variable` is always
